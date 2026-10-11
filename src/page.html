@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Альмагест — твоё небо в день рождения</title>
+<meta name="description" content="Натальная карта, совместимость пары и небо прямо сейчас — по настоящим астрономическим расчётам, на листе звёздного атласа. Бесплатно и без регистрации.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Альмагест — твоё небо в день рождения">
+<meta property="og:description" content="Положения Солнца, Луны и планет на минуту твоего рождения — на листе звёздного атласа.">
+<meta name="theme-color" content="#0b2640">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Old+Standard+TT:ital,wght@0,400;0,700;1,400&family=PT+Serif:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+Symbols&display=swap&text=%E2%98%89%E2%98%BD%E2%98%BF%E2%99%80%E2%99%82%E2%99%83%E2%99%84%E2%99%85%E2%99%86%E2%99%87%E2%99%88%E2%99%89%E2%99%8A%E2%99%8B%E2%99%8C%E2%99%8D%E2%99%8E%E2%99%8F%E2%99%90%E2%99%91%E2%99%92%E2%99%93%E2%98%8C%E2%9A%B9%E2%96%A1%E2%96%B3%E2%98%8D%E2%84%9E">
+<style>
+/* Лист атласа: поле берлинской лазури, гравировальные линии, звёзды-проколы светом, акварель только в заливках. */
+:root {
+  --lazur: #123a5c;
+  --lazur-deep: #0b2640;
+  --night: #061525;
+  --engrave: #9cc2e0;
+  --engrave-faint: rgba(156, 194, 224, .22);
+  --ivory: #f1e9d3;
+  --ivory-dim: #c8d6e2;
+  --star: #fff3cf;
+  --madder: #c0533a;
+  --gamboge: #e0ac3a;
+  --verdigris: #4c9c86;
+  --f-display: "Old Standard TT", "PT Serif", Georgia, serif;
+  --f-body: "PT Serif", Georgia, "Times New Roman", serif;
+  --f-sym: "Noto Sans Symbols", "Segoe UI Symbol", "Apple Symbols", serif;
+  --gutter: clamp(16px, 4vw, 56px);
+  --measure: 66ch;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 76px; scrollbar-color: var(--engrave) var(--lazur-deep); }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+body { margin: 0; background: var(--lazur); color: var(--ivory); font: 400 1.0625rem/1.6 var(--f-body); -webkit-font-smoothing: antialiased; }
+::selection { background: var(--gamboge); color: var(--night); }
+input, select, button, textarea { font: inherit; color: inherit; caret-color: var(--gamboge); }
+a { color: var(--ivory); text-decoration-color: var(--gamboge); text-underline-offset: .22em; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+:focus-visible { outline: 2px solid var(--gamboge); outline-offset: 3px; }
+.sym { font-family: var(--f-sym); font-variant-emoji: text; font-weight: 400; }
+.num { font-variant-numeric: tabular-nums lining-nums; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ——— шапка ——— */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 18px 28px; flex-wrap: wrap;
+  padding: 12px var(--gutter); background: var(--lazur-deep); border-bottom: 1px solid var(--engrave-faint); box-shadow: 0 3px 0 -2px var(--engrave-faint); }
+.brand { display: grid; line-height: 1.1; text-decoration: none; }
+.brand b { font: 700 1.05rem/1 var(--f-display); letter-spacing: .32em; text-transform: uppercase; }
+.brand i { font: italic 400 .8rem/1.3 var(--f-display); color: var(--ivory-dim); letter-spacing: .02em; }
+.top nav { display: flex; gap: 4px 22px; flex-wrap: wrap; font-size: .95rem; }
+.top nav a { text-decoration: none; color: var(--ivory-dim); padding: 4px 0; border-bottom: 1px solid transparent; }
+.top nav a:hover { color: var(--ivory); border-bottom-color: var(--gamboge); }
+
+/* ——— первый экран: лист атласа ——— */
+.plate { position: relative; min-height: clamp(620px, calc(100svh - 64px), 900px); overflow: hidden; background: var(--lazur); isolation: isolate; }
+.plate canvas.band { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; touch-action: pan-y; }
+.plate canvas.band:active { cursor: grabbing; }
+.ruler { position: absolute; top: 0; left: 0; right: 0; height: 46px; z-index: 2; overflow: hidden; border-bottom: 1px solid var(--engrave-faint); background: rgba(6, 21, 37, .42); }
+.ruler button { position: absolute; top: 0; height: 46px; display: grid; place-content: center; gap: 0; padding: 0 6px; border: 0; border-left: 1px solid var(--engrave-faint); background: transparent; cursor: pointer; text-align: center; white-space: nowrap; }
+.ruler button .sg { font: 400 1.05rem/1 var(--f-sym); color: var(--engrave); }
+.ruler button .nm { font: 400 .7rem/1.2 var(--f-display); letter-spacing: .14em; text-transform: uppercase; color: var(--ivory-dim); }
+.ruler button .dt { font: italic .68rem/1.2 var(--f-display); color: var(--engrave); opacity: .85; }
+.ruler button:hover .nm, .ruler button[aria-pressed="true"] .nm { color: var(--gamboge); }
+.ruler button[aria-pressed="true"] { background: rgba(224, 172, 58, .08); }
+.ruler button .deg { position: absolute; right: 4px; bottom: 3px; font: italic .62rem/1 var(--f-display); color: var(--engrave); opacity: .9; }
+
+.cartouche { position: absolute; z-index: 3; left: var(--gutter); bottom: clamp(28px, 6vh, 64px); width: min(620px, calc(100% - 2 * var(--gutter)));
+  padding: clamp(22px, 3vw, 36px); background: var(--night); border: 1px solid var(--engrave); outline: 1px solid var(--engrave-faint); outline-offset: -8px; }
+.cartouche h1 { margin: 0 0 .35em; font: 400 clamp(2.3rem, 5vw, 4.6rem)/.98 var(--f-display); letter-spacing: .015em; text-transform: uppercase; text-wrap: balance; }
+.cartouche h1 em { display: block; font-style: italic; text-transform: none; letter-spacing: 0; color: var(--gamboge); }
+.lede { margin: 0 0 1.4em; max-width: 46ch; color: var(--ivory-dim); }
+
+.birth { display: grid; grid-template-columns: 1.25fr 1fr 1.4fr; gap: 14px 14px; align-items: end; }
+.field { display: grid; gap: 4px; min-width: 0; }
+.field label, .field .lbl { font: italic .82rem/1.2 var(--f-display); color: var(--engrave); letter-spacing: .02em; }
+.field input, .field select { width: 100%; min-width: 0; padding: 7px 2px 6px; background: transparent; border: 0; border-bottom: 1px solid var(--engrave); border-radius: 0; color: var(--ivory); font-size: 1rem; }
+.field input:focus, .field select:focus { outline: none; border-bottom: 2px solid var(--gamboge); padding-bottom: 5px; }
+.field select option { background: var(--night); color: var(--ivory); }
+.field select { appearance: none; padding-right: 22px; background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 12 8%27%3E%3Cpath d=%27M1 1.5l5 5 5-5%27 fill=%27none%27 stroke=%27%23e0ac3a%27 stroke-width=%271.4%27/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 4px center; background-size: 12px 8px; cursor: pointer; }
+.field input::-webkit-calendar-picker-indicator { filter: invert(72%) sepia(52%) saturate(620%) hue-rotate(2deg) brightness(95%); cursor: pointer; opacity: .9; }
+.row2 { display: flex; align-items: center; justify-content: space-between; gap: 14px 22px; flex-wrap: wrap; grid-column: 1 / -1; margin-top: 6px; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--ivory-dim); cursor: pointer; }
+.check input { appearance: none; width: 18px; height: 18px; margin: 0; border: 1px solid var(--engrave); background: transparent; display: grid; place-content: center; cursor: pointer; }
+.check input::after { content: ""; width: 10px; height: 10px; background: var(--gamboge); transform: scale(0); transition: transform .15s ease; }
+.check input:checked { border-color: var(--gamboge); }
+.check input:checked::after { transform: scale(1); }
+.coords { display: none; grid-column: 1 / -1; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.coords.on { display: grid; }
+
+.btn { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 50px; padding: 12px 26px; border: 1px solid var(--gamboge);
+  background: var(--gamboge); color: var(--night); font: 700 .95rem/1 var(--f-display); letter-spacing: .14em; text-transform: uppercase; cursor: pointer; text-decoration: none;
+  outline: 1px solid rgba(6, 21, 37, .55); outline-offset: -5px; transition: background-color .2s ease, transform .2s cubic-bezier(.2, .8, .2, 1); }
+.btn:hover { background: #ecbd52; transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn.ghost { background: transparent; color: var(--ivory); border-color: var(--engrave); outline-color: var(--engrave-faint); }
+.btn.ghost:hover { background: rgba(156, 194, 224, .08); }
+.btn[disabled] { opacity: .55; cursor: progress; }
+
+.moon-card { position: absolute; z-index: 3; right: var(--gutter); bottom: clamp(28px, 6vh, 64px); display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center;
+  padding: 18px 22px; background: var(--night); border: 1px solid var(--engrave); outline: 1px solid var(--engrave-faint); outline-offset: -6px; max-width: 300px; }
+.moon-card canvas { grid-row: span 3; width: 64px; height: 64px; }
+.moon-card b { font: 700 .78rem/1.2 var(--f-display); letter-spacing: .16em; text-transform: uppercase; }
+.moon-card span { font-size: .9rem; color: var(--ivory-dim); line-height: 1.35; }
+.plate-note { position: absolute; z-index: 2; right: var(--gutter); top: 58px; margin: 0; font: italic .78rem/1.3 var(--f-display); color: var(--engrave); text-align: right; max-width: 34ch; pointer-events: none; }
+.tip { position: absolute; z-index: 4; pointer-events: none; padding: 6px 10px; background: var(--night); border: 1px solid var(--engrave); font: .82rem/1.35 var(--f-body); color: var(--ivory); white-space: nowrap; transform: translate(-50%, calc(-100% - 14px)); opacity: 0; transition: opacity .15s; }
+.tip.on { opacity: 1; }
+.tip i { color: var(--engrave); font-family: var(--f-display); }
+
+/* ——— разделы ——— */
+section.sheet { padding-block: clamp(72px, 10vw, 140px); padding-inline: var(--gutter); border-top: 1px solid var(--engrave-faint); position: relative; }
+section.sheet.deep { background: var(--lazur-deep); }
+section.sheet.night { background: var(--night); }
+.sheet-head { display: grid; gap: 14px; max-width: 980px; margin-bottom: clamp(36px, 5vw, 64px); }
+.sheet-head h2 { margin: 0; font: 400 clamp(2rem, 4vw, 3.4rem)/1.02 var(--f-display); letter-spacing: .01em; text-transform: uppercase; text-wrap: balance; }
+.sheet-head p { margin: 0; max-width: var(--measure); color: var(--ivory-dim); }
+
+.chart-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
+.wheel-wrap { position: relative; width: 100%; max-width: 680px; aspect-ratio: 1; justify-self: center; }
+.wheel-wrap canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.chart-meta { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 0 0 18px; font: italic .9rem/1.4 var(--f-display); color: var(--engrave); }
+.chart-meta .sample { color: var(--gamboge); font-style: normal; letter-spacing: .12em; text-transform: uppercase; font-size: .72rem; border: 1px solid var(--gamboge); padding: 2px 7px; align-self: center; }
+.reading { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.reading li { display: grid; grid-template-columns: 2.4rem 1fr; gap: 2px 14px; padding: 14px 0; border-bottom: 1px solid var(--engrave-faint); transition: background-color .2s; }
+.reading li.hl { background: rgba(224, 172, 58, .07); }
+.reading .g { grid-row: span 2; font: 1.6rem/1.1 var(--f-sym); color: var(--gamboge); text-align: center; padding-top: 2px; }
+.reading .cause { font: italic .85rem/1.3 var(--f-display); color: var(--engrave); }
+.reading .text { margin: 0; max-width: 58ch; }
+.reading h3 { grid-column: 1 / -1; margin: 22px 0 4px; font: 700 .78rem/1.2 var(--f-display); letter-spacing: .18em; text-transform: uppercase; color: var(--ivory-dim); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px 22px; margin: 22px 0 0; padding: 0; list-style: none; font-size: .86rem; color: var(--ivory-dim); }
+.legend svg { width: 44px; height: 10px; vertical-align: middle; margin-right: 8px; }
+.demo-note { margin: 20px 0 0; font: italic .8rem/1.4 var(--f-display); color: var(--engrave); }
+.after-chart { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 28px; align-items: center; }
+
+.pair-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)) auto; gap: 18px 28px; align-items: end; max-width: 980px; margin-bottom: 40px; }
+.pair-form fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
+.pair-form legend { padding: 0; margin-bottom: 8px; font: 700 .8rem/1.2 var(--f-display); letter-spacing: .18em; text-transform: uppercase; }
+.verdict { margin: 0 0 18px; font: 400 clamp(1.3rem, 2.4vw, 1.9rem)/1.25 var(--f-display); text-wrap: balance; max-width: 30ch; }
+.balance { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; margin: 0 0 24px; font-size: .9rem; color: var(--ivory-dim); max-width: 520px; }
+.balance .bar { position: relative; height: 10px; background: rgba(192, 83, 58, .55); }
+.balance .bar span { position: absolute; inset: 0 auto 0 0; background: var(--verdigris); transition: width .6s cubic-bezier(.2, .8, .2, 1); }
+
+.now-grid { display: grid; grid-template-columns: minmax(0, 340px) minmax(0, 1fr); gap: clamp(28px, 5vw, 80px); align-items: start; }
+.moon-big { display: grid; gap: 12px; justify-items: start; }
+.moon-big canvas { width: min(300px, 70vw); height: auto; aspect-ratio: 1; }
+.moon-big .ph { font: 400 1.6rem/1.15 var(--f-display); text-transform: uppercase; letter-spacing: .04em; }
+.moon-big .ph-sub { color: var(--ivory-dim); margin: 0; }
+table.eph { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums lining-nums; }
+table.eph caption { text-align: left; font: italic .9rem/1.4 var(--f-display); color: var(--engrave); padding-bottom: 12px; }
+table.eph th { font: 700 .72rem/1.2 var(--f-display); letter-spacing: .16em; text-transform: uppercase; color: var(--engrave); text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--engrave); }
+table.eph td, table.eph tbody th { padding: 11px 10px; border-bottom: 1px solid var(--engrave-faint); }
+table.eph tbody th { font: 400 1rem/1.4 var(--f-body); letter-spacing: 0; text-transform: none; color: var(--ivory); text-align: left; }
+table.eph td.g { font: 1.25rem/1 var(--f-sym); color: var(--gamboge); width: 2.2rem; }
+table.eph td.r { color: var(--madder); font-style: italic; font-family: var(--f-display); }
+.eph-wrap { overflow-x: auto; }
+.notice { margin-top: 22px; padding: 14px 18px; border: 1px solid var(--madder); color: var(--ivory); max-width: 640px; }
+.notice b { font-family: var(--f-display); letter-spacing: .1em; text-transform: uppercase; font-size: .8rem; color: var(--madder); display: block; margin-bottom: 4px; }
+
+.method { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); gap: 0; border-top: 1px solid var(--engrave); }
+.method div { padding: 22px 26px 26px 0; border-bottom: 1px solid var(--engrave-faint); }
+.method div + div { padding-left: 26px; border-left: 1px solid var(--engrave-faint); }
+.method h3 { margin: 0 0 8px; font: 700 .85rem/1.3 var(--f-display); letter-spacing: .14em; text-transform: uppercase; }
+.method p { margin: 0; color: var(--ivory-dim); font-size: .96rem; max-width: 46ch; }
+
+.offers { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 0; border: 1px solid var(--engrave); outline: 1px solid var(--engrave-faint); outline-offset: -8px; max-width: 1180px; }
+.offer { padding: clamp(26px, 4vw, 48px); display: grid; gap: 14px; align-content: start; }
+.offer + .offer { border-left: 1px solid var(--engrave-faint); }
+.offer h3 { margin: 0; font: 400 clamp(1.5rem, 2.6vw, 2.2rem)/1.1 var(--f-display); text-transform: uppercase; letter-spacing: .02em; }
+.offer p { margin: 0; color: var(--ivory-dim); max-width: 52ch; }
+.offer ul { margin: 0; padding-left: 1.1em; color: var(--ivory-dim); list-style: square; }
+.offer li { margin: 4px 0; }
+.offer li::marker { color: var(--gamboge); }
+.fill { display: inline-block; padding: 1px 8px; border: 1px dashed var(--gamboge); color: var(--gamboge); font: italic .9rem/1.5 var(--f-display); }
+.price { font: 400 1.4rem/1.2 var(--f-display); }
+.astrologer { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; }
+.portrait { width: 96px; aspect-ratio: 3 / 4; border: 1px dashed var(--engrave); display: grid; place-items: center; font: italic .72rem/1.2 var(--f-display); color: var(--engrave); text-align: center; padding: 6px; }
+
+footer { padding: 48px var(--gutter) calc(48px + env(safe-area-inset-bottom, 0px)); background: var(--night); border-top: 1px solid var(--engrave-faint); display: grid; grid-template-columns: 1fr auto; gap: 18px 40px; color: var(--ivory-dim); font-size: .9rem; }
+footer p { margin: 0; max-width: 70ch; }
+
+.chart-grid > *, .now-grid > * { min-width: 0; }
+@media (max-width: 960px) {
+  .chart-grid, .now-grid { grid-template-columns: minmax(0, 1fr); }
+  .offers { grid-template-columns: 1fr; }
+  .offer + .offer { border-left: 0; border-top: 1px solid var(--engrave-faint); }
+  .pair-form { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .plate { min-height: 0; display: grid; grid-template-rows: auto auto; }
+  .plate .band-box { position: relative; height: 236px; }
+  .plate canvas.band { position: absolute; }
+  .cartouche { position: relative; left: auto; bottom: auto; width: auto; margin: 10px 12px 0; padding: 18px 18px 20px; }
+  .cartouche h1 { font-size: clamp(1.9rem, 8.6vw, 2.5rem); margin-bottom: .3em; }
+  .lede { font-size: .95rem; line-height: 1.5; margin-bottom: 1em; }
+  .birth { gap: 10px 12px; }
+  .row2 { margin-top: 2px; }
+  .row2 .btn { width: 100%; }
+  .moon-card { position: relative; right: auto; bottom: auto; margin: 16px; max-width: none; }
+  .plate-note { display: none; }
+  .ruler button .deg { display: none; }
+  .birth { grid-template-columns: 1fr 1fr; }
+  .birth .city { grid-column: 1 / -1; }
+  .coords { grid-template-columns: 1fr 1fr; }
+  .method div + div { padding-left: 0; border-left: 0; }
+  footer { grid-template-columns: 1fr; }
+  .top { position: relative; padding-block: 10px 0; }
+  .top nav { width: 100%; flex-wrap: nowrap; overflow-x: auto; gap: 18px; font-size: .9rem; padding-bottom: 8px; scrollbar-width: none; }
+  .top nav a { white-space: nowrap; }
+  html { scroll-padding-top: 12px; }
+}
+@media (min-width: 761px) { .plate .band-box { position: absolute; inset: 0; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="#top" aria-label="Альмагест, на главную"><b>Альмагест</b><i>атлас личного неба</i></a>
+  <nav aria-label="Разделы">
+    <a href="#chart">Моя карта</a><a href="#pair">Совместимость</a><a href="#now">Небо сегодня</a><a href="#method">Как считаем</a><a href="#offer">Разбор</a>
+  </nav>
+</header>
+
+<main id="top">
+  <section class="plate" aria-labelledby="h1">
+    <div class="band-box">
+      <canvas class="band" id="band" role="img" aria-label="Зодиакальная полоса звёздного атласа с текущими положениями Солнца, Луны и планет"></canvas>
+      <div class="ruler" id="ruler" role="toolbar" aria-label="Знаки зодиака: прокрутить атлас к знаку"></div>
+      <p class="plate-note" id="plateNote"></p>
+      <div class="tip" id="tip" role="status" aria-live="polite"></div>
+    </div>
+    <div class="cartouche">
+      <h1 id="h1">Твоё небо <em>в день рождения</em></h1>
+      <p class="lede">Альмагест считает, где стояли Солнце, Луна и планеты в минуту твоего рождения, и наносит их на лист звёздного атласа. Бесплатно и без регистрации.</p>
+      <form class="birth" id="birthForm" novalidate>
+        <div class="field"><label for="bDate">Дата рождения</label><input id="bDate" type="date" required min="1900-01-01" max="2099-12-31" value="1995-06-14"></div>
+        <div class="field"><label for="bTime">Время</label><input id="bTime" type="time" value="08:30"></div>
+        <div class="field city"><label for="bCity">Город</label><select id="bCity"></select></div>
+        <div class="coords" id="bCoords">
+          <div class="field"><label for="bLat">Широта, °</label><input id="bLat" type="number" step="0.01" min="-89" max="89" value="55.76" inputmode="decimal"></div>
+          <div class="field"><label for="bLon">Долгота, ° (восток +)</label><input id="bLon" type="number" step="0.01" min="-180" max="180" value="37.62" inputmode="decimal"></div>
+          <div class="field"><label for="bTz">Часовой пояс, ч от UTC</label><input id="bTz" type="number" step="0.5" min="-12" max="14" value="3" inputmode="decimal"></div>
+        </div>
+        <div class="row2">
+          <label class="check"><input id="bNoTime" type="checkbox"> Не знаю время рождения</label>
+          <button class="btn" type="submit" id="bGo">Построить моё небо</button>
+        </div>
+      </form>
+    </div>
+    <div class="moon-card" aria-live="polite">
+      <canvas id="moonSmall" width="128" height="128" aria-hidden="true"></canvas>
+      <b id="moonSmallTitle">Луна</b>
+      <span id="moonSmallText"></span>
+    </div>
+  </section>
+
+  <section class="sheet deep" id="chart" aria-labelledby="chartH">
+    <div class="sheet-head">
+      <h2 id="chartH">Твоя натальная карта</h2>
+      <p>Круг — это небо в минуту рождения. Слева восходящий знак, по кругу — двенадцать знаков и положения планет. Линии внутри — аспекты: углы между планетами, по которым астрологи читают характер. Наведи на планету, чтобы увидеть её связи.</p>
+    </div>
+    <div class="chart-grid">
+      <div class="wheel-wrap"><canvas id="wheel" role="img" aria-label="Натальная карта"></canvas></div>
+      <div>
+        <p class="chart-meta" id="chartMeta"></p>
+        <ul class="reading" id="reading"></ul>
+        <ul class="legend" aria-label="Как читать линии аспектов">
+          <li><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="#9cc2e0" stroke-width="4"/></svg>соединение — слияние</li>
+          <li><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="#9cc2e0" stroke-width="1.6"/></svg>трин — гармония</li>
+          <li><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="#9cc2e0" stroke-width="1.6" stroke-dasharray="1.5 4" stroke-linecap="round"/></svg>секстиль — шанс</li>
+          <li><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="5" x2="44" y2="5" stroke="#9cc2e0" stroke-width="1.6" stroke-dasharray="8 5"/></svg>квадрат — напряжение</li>
+          <li><svg viewBox="0 0 44 10" aria-hidden="true"><line x1="0" y1="3" x2="44" y2="3" stroke="#9cc2e0" stroke-width="1.2"/><line x1="0" y1="7" x2="44" y2="7" stroke="#9cc2e0" stroke-width="1.2"/></svg>оппозиция — полюса</li>
+        </ul>
+        <p class="demo-note">Формулировки толкований — демонстрационные; астрологу их нужно заменить своими.</p>
+        <div class="after-chart"><a class="btn ghost" href="#offer">Заказать полный разбор</a></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet" id="pair" aria-labelledby="pairH">
+    <div class="sheet-head">
+      <h2 id="pairH">Совместимость пары</h2>
+      <p>Две даты рождения — и карты накладываются друг на друга: снаружи планеты первого человека, внутри второго. Линии между кругами показывают, где вы подхватываете друг друга, а где высекаете искры.</p>
+    </div>
+    <form class="pair-form" id="pairForm" novalidate>
+      <fieldset><legend>Первый</legend>
+        <div class="field"><label for="aName">Имя</label><input id="aName" type="text" value="Аня" maxlength="24" autocomplete="off"></div>
+        <div class="field"><label for="aDate">Дата рождения</label><input id="aDate" type="date" value="1996-03-02" min="1900-01-01" max="2099-12-31"></div>
+      </fieldset>
+      <fieldset><legend>Второй</legend>
+        <div class="field"><label for="cName">Имя</label><input id="cName" type="text" value="Дима" maxlength="24" autocomplete="off"></div>
+        <div class="field"><label for="cDate">Дата рождения</label><input id="cDate" type="date" value="1994-08-19" min="1900-01-01" max="2099-12-31"></div>
+      </fieldset>
+      <button class="btn" type="submit">Сравнить</button>
+    </form>
+    <div class="chart-grid">
+      <div class="wheel-wrap"><canvas id="synastry" role="img" aria-label="Наложение двух карт"></canvas></div>
+      <div>
+        <p class="verdict" id="verdict"></p>
+        <p class="chart-meta" id="pairSample"><span class="sample">Пример</span><span>введи свои даты выше</span></p>
+        <div class="balance" aria-label="Соотношение лёгких и напряжённых связей"><span id="balEasy"></span><div class="bar"><span id="balBar"></span></div><span id="balHard"></span></div>
+        <ul class="reading" id="pairReading"></ul>
+        <p class="demo-note">Время рождения для совместимости не нужно: берётся полдень, поэтому Луна может сместиться на несколько градусов.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet night" id="now" aria-labelledby="nowH">
+    <div class="sheet-head">
+      <h2 id="nowH">Небо сегодня</h2>
+      <p>Это не прогноз «на всех Овнов», а настоящие положения светил на эту минуту. Страница пересчитывает их сама, пока открыта.</p>
+    </div>
+    <div class="now-grid">
+      <div class="moon-big">
+        <canvas id="moonBig" width="600" height="600" aria-hidden="true"></canvas>
+        <div class="ph" id="moonPhaseName"></div>
+        <p class="ph-sub" id="moonPhaseSub"></p>
+      </div>
+      <div>
+        <div class="eph-wrap">
+          <table class="eph"><caption id="ephCaption"></caption>
+            <thead><tr><th scope="col" colspan="2">Светило</th><th scope="col">Знак</th><th scope="col">Положение</th><th scope="col">Движение</th></tr></thead>
+            <tbody id="ephBody"></tbody>
+          </table>
+        </div>
+        <div id="notices"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sheet deep" id="method" aria-labelledby="methodH">
+    <div class="sheet-head">
+      <h2 id="methodH">Как мы считаем</h2>
+      <p>Всё, что на этой странице можно посчитать, посчитано, а не выбрано случайно. Расчёт идёт прямо в браузере, данные никуда не отправляются.</p>
+    </div>
+    <div class="method">
+      <div><h3>Планеты</h3><p>Положения по элементам орбит с решением уравнения Кеплера и поправками на взаимное притяжение Юпитера и Сатурна. Точность — около одной-двух угловых минут.</p></div>
+      <div><h3>Луна</h3><p>Орбита Луны плюс двенадцать главных неравенств её движения. Ошибка — несколько угловых минут, для знака и градуса этого достаточно.</p></div>
+      <div><h3>Асцендент и дома</h3><p>Восходящий знак — по местному звёздному времени и широте города. Дома — равные, по тридцать градусов от асцендента.</p></div>
+      <div><h3>Что учесть</h3><p>Часовые пояса городов — нынешние; летнее время прошлых лет не учитывается. Если родился до 2011 года летом, уточни время в свидетельстве.</p></div>
+    </div>
+  </section>
+
+  <section class="sheet" id="offer" aria-labelledby="offerH">
+    <div class="sheet-head">
+      <h2 id="offerH">Подробный разбор</h2>
+      <p>Бесплатная карта показывает, где стоят планеты. Разбор объясняет, что это значит именно для тебя: работа, отношения, деньги, сроки.</p>
+    </div>
+    <div class="offers">
+      <div class="offer">
+        <h3>Разбор натальной карты</h3>
+        <p>Письменный разбор по твоей карте: сильные стороны, повторяющиеся сюжеты, на что обратить внимание в ближайший год.</p>
+        <ul><li>все планеты, дома и аспекты</li><li>транзиты на двенадцать месяцев</li><li>ответы на три твоих вопроса</li></ul>
+        <p class="price"><span class="fill">цена — заполнить</span></p>
+        <div><a class="btn" href="#contacts">Заказать разбор</a></div>
+      </div>
+      <div class="offer">
+        <h3>Консультация астролога</h3>
+        <div class="astrologer"><div class="portrait">фото астролога</div><div><p><span class="fill">имя астролога — заполнить</span></p><p>Живой разговор по видеосвязи, около часа. Карта строится заранее.</p></div></div>
+        <p class="price"><span class="fill">цена и длительность — заполнить</span></p>
+        <div><a class="btn ghost" href="#contacts">Записаться</a></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer id="contacts">
+  <div>
+    <p><b style="font-family:var(--f-display);letter-spacing:.3em;text-transform:uppercase">Альмагест</b> — рабочее название.</p>
+    <p><span class="fill">контакты: телеграм, почта — заполнить</span></p>
+  </div>
+  <p>Астрологические толкования носят развлекательный характер. Положения светил рассчитаны астрономически, © 2026.</p>
+</footer>
+
+<!--SCRIPTS-->
+<script src="../astro.js"></script>
+<script src="../stars.js"></script>
+<script src="app.js"></script>
+<!--/SCRIPTS-->
+</body>
+</html>
