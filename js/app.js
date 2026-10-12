@@ -206,7 +206,8 @@
     const ext = Math.max(...pts.map(p => Math.hypot(p.x, p.y))) || 1;
     return { pts: pts.map(p => ({ ...p, fx: cx + p.x / ext * size / aspect, fy: cy + p.y / ext * size })), lines: c.lines };
   }
-  const HU = { cs: new Float32Array(72), ncs: 0, cl: new Float32Array(48), ncl: 0, sel: 0, open: 0, hover: 0, hoverTo: 0, opening: false };
+  const HU = { cs: new Float32Array(72), ncs: 0, cl: new Float32Array(48), ncl: 0, sel: 0, open: 0, hover: 0, hoverTo: 0, opening: false,
+    meta: [], cons: [], hs: -1, hc: -1, hk: 0, met: new Float32Array([0, 0, 0, -99, 0, 0, 0, -99, 0, 0, 0, -99]), metN: 0, lastC: -1, mreal: 0, mrealTo: 0, mL: [0, 0, -1] };
   function layoutHeroStars() {
     const r = hero.getBoundingClientRect(), a = r.width / Math.max(1, r.height);
     const portrait = a < 0.9;
@@ -214,16 +215,19 @@
       ? [['leo', 0.42, 0.66, 0.15], ['orion', 0.2, 0.9, 0.08]]
       : [['leo', 0.6, 0.73, 0.2], ['orion', 0.44, 0.86, 0.1]];
     let ni = 0, nl = 0;
+    HU.meta = []; HU.cons = [];
     for (const [key, cx, cy, size] of list) {
       const pr = projectConst(key, cx, cy, size, a);
-      const idx = {};
+      const idx = {}, lo = ni;
       for (const p of pr.pts) {
         if (ni >= 24) break;
         idx[p.k] = ni;
         HU.cs.set([p.fx, p.fy, Math.min(1, Math.max(0.12, (4.3 - p.mag) / 4.2))], ni * 3);
         if (p.name === 'Регул') HU.sel = ni;
+        HU.meta[ni] = { name: p.name, mag: p.mag, con: HU.cons.length };
         ni++;
       }
+      HU.cons.push({ key, lo, hi: ni - 1 });
       for (const [x, y] of pr.lines) if (idx[x] !== undefined && idx[y] !== undefined && nl < 24) { HU.cl.set([idx[x], idx[y]], nl * 2); nl++; }
     }
     HU.ncs = ni; HU.ncl = nl;
@@ -234,6 +238,7 @@
   const PLATES = {
     'hero-far': ['assets/hero-far.webp', 'assets/hero-far-s.webp'], 'hero-near': ['assets/hero-near.webp', 'assets/hero-near-s.webp'],
     'intro-valley': ['assets/intro-valley.webp', 'assets/intro-valley-s.webp'], 'method-room': ['assets/method-room.webp', 'assets/method-room-s.webp'],
+    'lake-shore': ['assets/lake-shore.webp', 'assets/lake-shore-s.webp'],
   };
   const plateUrl = n => PLATES[n][Stage.tier === 'high' ? 0 : 1];
   const heroView = Stage.view(hero, 'hero', {
@@ -243,6 +248,13 @@
       gl.uniform3fv(L('u_cs'), HU.cs); gl.uniform1i(L('u_ncs'), HU.ncs);
       gl.uniform2fv(L('u_cl'), HU.cl); gl.uniform1i(L('u_ncl'), HU.ncl);
       gl.uniform1i(L('u_sel'), HU.sel); gl.uniform1f(L('u_open'), HU.open); gl.uniform1f(L('u_hover'), HU.hover);
+      HU.hk += ((HU.hc >= 0 ? 1 : 0) - HU.hk) * (1 - Math.exp(-dt * 8));
+      HU.mreal += (HU.mrealTo - HU.mreal) * (1 - Math.exp(-dt * 3));
+      const c = HU.cons[HU.hc] || HU.cons[HU.lastC] || { lo: -1, hi: -2 };
+      if (HU.hc >= 0) HU.lastC = HU.hc;
+      gl.uniform2i(L('u_hcon'), c.lo, c.hi); gl.uniform1i(L('u_hs'), HU.hs); gl.uniform1f(L('u_hk'), HU.hk);
+      gl.uniform4fv(L('u_met'), HU.met);
+      gl.uniform1f(L('u_mreal'), HU.mreal); gl.uniform3fv(L('u_mL'), HU.mL);
     },
   });
   // тексты первого экрана появляются, когда небо уже проявилось
@@ -260,6 +272,81 @@
   if (!Stage.ok || REDUCED) heroTexts(0);
   // запасной таймер: если кадров нет (вкладка в фоне), тексты всё равно появятся
   setTimeout(() => heroIn.forEach(el => el.classList.add('on')), 6000);
+
+  // ——— интерактив первого экрана: картинка за курсором не едет ———
+  // звёзды созвездий подписываются при наведении (на телефоне — касанием), созвездие подсвечивается;
+  // Луна при наведении показывает настоящую фазу на сегодня; щелчок по небу — падающая звезда
+  const CON_NOTE = {
+    leo: 'Зодиакальное созвездие. Солнце проходит его с 10 августа по 16 сентября.',
+    orion: 'Не зодиакальное: лежит южнее эклиптики. Лучше всего видно зимой.',
+  };
+  const heroTip = $('heroTip');
+  const heroQ = (cx, cy) => {
+    const r = hero.getBoundingClientRect();
+    return { x: (cx - r.left - r.width / 2) / r.height, y: (r.height / 2 - (cy - r.top)) / r.height, a: r.width / r.height, r };
+  };
+  const smooth = (e0, e1, x) => { const t = Math.min(1, Math.max(0, (x - e0) / (e1 - e0))); return t * t * (3 - 2 * t); };
+  function moonHit(Q) {
+    const pt = 1 - smooth(.75, 1.2, Q.a);
+    const cx = (Q.a * .5 - .38) * (1 - pt) + Q.a * .2 * pt, cy = .1 * (1 - pt) + .17 * pt, R = .285 * (1 - pt) + .165 * pt;
+    return Math.hypot(Q.x - cx, Q.y - cy) < R;
+  }
+  function starAt(Q) {
+    let best = -1, bd = 22 / Q.r.height;
+    for (let i = 0; i < HU.ncs; i++) {
+      const sx = (HU.cs[i * 3] - .5) * Q.a, sy = HU.cs[i * 3 + 1] - .5;
+      const d = Math.hypot(Q.x - sx, Q.y - sy);
+      if (d < bd) { bd = d; best = i; }
+    }
+    return best;
+  }
+  function showStarTip(i, Q) {
+    const m = HU.meta[i], c = HU.cons[m.con], C = window.CONSTELLATIONS[c.key];
+    heroTip.innerHTML = `<b>${m.name || 'Звезда ' + C.gen}</b><span>созвездие ${C.name} · блеск ${String(m.mag).replace('.', ',')}<sup>m</sup></span><span>${CON_NOTE[c.key] || ''}</span>`;
+    const x = (HU.cs[i * 3] - .5) * Q.a * Q.r.height + Q.r.width / 2, y = (1 - HU.cs[i * 3 + 1]) * Q.r.height;
+    heroTip.style.left = Math.min(Q.r.width - 300, Math.max(12, x + 16)) + 'px';
+    heroTip.style.top = Math.max(70, y - 18) + 'px';
+    heroTip.hidden = false;
+  }
+  function showMoonTip(Q) {
+    const ph = moonPhase(new Date());
+    heroTip.innerHTML = `<b>Луна сегодня: ${phaseName(ph.elong).toLowerCase()}</b><span>освещено ${Math.round(ph.illum * 100)}% — так её сейчас видно с Земли</span>`;
+    heroTip.style.left = Math.max(12, Math.min(Q.r.width - 300, (Q.x + Q.a / 2) * Q.r.height - 140)) + 'px';
+    heroTip.style.top = Math.max(70, (.5 - Q.y) * Q.r.height + 40) + 'px';
+    heroTip.hidden = false;
+  }
+  function moonLight() {
+    // свет на диске по настоящей элонгации: новолуние — сзади, полнолуние — спереди; растущая освещена справа
+    const e = moonPhase(new Date()).elong * RAD, side = Math.sin(e) >= 0 ? 1 : -1;
+    HU.mL = [side * Math.abs(Math.sin(e)) * .96, Math.abs(Math.sin(e)) * .28, -Math.cos(e)];
+  }
+  function heroPoint(cx, cy, tap) {
+    if (HU.opening) return;
+    const Q = heroQ(cx, cy);
+    const i = starAt(Q);
+    if (i >= 0) { HU.hs = i; HU.hc = HU.meta[i].con; showStarTip(i, Q); hero.style.cursor = 'help'; HU.mrealTo = 0; }
+    else if (moonHit(Q)) { HU.hs = -1; HU.hc = -1; moonLight(); HU.mrealTo = 1; showMoonTip(Q); hero.style.cursor = 'help'; }
+    else { HU.hs = -1; HU.hc = -1; HU.mrealTo = 0; heroTip.hidden = true; hero.style.cursor = ''; }
+    Stage.invalidate();
+    return i >= 0 || HU.mrealTo > 0;
+  }
+  hero.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || e.target.closest('a, button')) return;
+    heroPoint(e.clientX, e.clientY);
+  });
+  hero.addEventListener('pointerleave', () => { HU.hs = -1; HU.hc = -1; HU.mrealTo = 0; heroTip.hidden = true; Stage.invalidate(); });
+  hero.addEventListener('click', e => {
+    if (e.target.closest('a, button, input, select, label, .moon-today')) return;
+    if (heroPoint(e.clientX, e.clientY, true)) return; // касание звезды или Луны — подпись
+    if (REDUCED || !Stage.ok) return;
+    // падающая звезда: стартует у точки щелчка и уходит вниз, в сторону гор
+    const r = hero.getBoundingClientRect();
+    const fx = (e.clientX - r.left) / r.width, fy = 1 - (e.clientY - r.top) / r.height;
+    const down = Math.PI * (.12 + Math.random() * .16), ang = Math.random() < .5 ? -down : Math.PI + down;
+    const k = HU.metN++ % 3;
+    HU.met.set([fx, fy, ang, Stage.clock()], k * 4);
+    Stage.invalidate();
+  });
 
   const openBtn = $('openChart');
   openBtn.addEventListener('pointerenter', () => { HU.hoverTo = 1; Stage.invalidate(); });
@@ -1371,7 +1458,7 @@
   const END = { comet: -1 };
   const endSec = $('end'), finale = $('finale');
   Stage.view(endSec, 'lake', {
-    textures: { u_shore: 'assets/lake-shore.webp' },
+    textures: { u_shore: plateUrl('lake-shore') },
     uniforms: (gl, L, v, now) => { gl.uniform1f(L('u_comet'), END.comet < 0 ? -1 : (now - END.comet) / 1000); },
   });
   new IntersectionObserver((es, ob) => {

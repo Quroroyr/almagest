@@ -9,6 +9,12 @@ uniform int u_ncl;
 uniform int u_sel;       // звезда, которая раскрывается в круг карты
 uniform float u_open;    // 0…1 — переход «Открыть карту»
 uniform float u_hover;   // 0…1 — наведение на кнопку: звезда отзывается
+uniform ivec2 u_hcon;    // звёзды созвездия под указателем (с какой по какую)
+uniform int u_hs;        // звезда под указателем
+uniform float u_hk;      // 0…1 — подсветка созвездия
+uniform vec4 u_met[3];   // падающие звёзды: старт (доли вида), угол, время запуска
+uniform float u_mreal;   // 0…1 — Луна показывает настоящую фазу
+uniform vec3 u_mL;       // направление света для настоящей фазы
 
 vec2 toQ(vec2 f, float a) { return (f - .5) * vec2(a, 1.); }
 
@@ -73,6 +79,7 @@ void main() {
 
   // звёзды трёх планов; планы чуть смещаются за указателем
   vec2 sp = p / u_px;
+  float qpxM = u_res.y / u_px;
   col += starLayer(sp + m * 6., 46., .5, 1.3, t, 1.) * starsA1;
   col += starLayer(sp + m * 3. + 300., 22., .45, 7.1, t, .55) * starsA2;
   if (u_q > .5) col += starLayer(sp + m * 1.5 + 700., 12., .35, 3.7, t, .3) * starsA3 * (.4 + band * .9);
@@ -85,12 +92,31 @@ void main() {
   float dustA = starsA3 * (.35 + band * .7);
   col += starLayer(dp * 1.0 + vec2(91., 13.), 9., .22, 9.9, t * 2., .22) * dustA;
 
+  // падающие звёзды по щелчку: яркая голова и хвост, гаснут за ~1,3 с
+  for (int i = 0; i < 3; i++) {
+    float age = t - u_met[i].w;
+    if (age < 0. || age > 1.4) continue;
+    vec2 dirM = vec2(cos(u_met[i].z), sin(u_met[i].z));
+    vec2 S0 = toQ(u_met[i].xy, a);
+    float trav = .75 * (1. - exp(-age * 1.6));
+    vec2 head = S0 + dirM * trav;
+    vec2 tail = S0 + dirM * max(trav - .22, 0.);
+    vec2 hq = q - tail; float L = max(length(head - tail), 1e-4);
+    float along = clamp(dot(hq, dirM) / L, 0., 1.);
+    float dm = length(hq - dirM * along * L) * qpxM;
+    float life = smoothstep(0., .08, age) * (1. - smoothstep(.7, 1.4, age));
+    float tr = along * along;
+    col += vec3(.82, .9, 1.) * (exp(-dm * dm * .22) * 1.5 + exp(-dm * .45) * .3) * tr * life;
+    col += vec3(.95, .97, 1.) * exp(-length(q - head) * qpxM * .22) * life * .9;
+  }
+
   // Луна
   vec2 d = (q - mc) / R; float r2 = dot(d, d), r = sqrt(r2);
   if (r < 1.) {
     vec3 n = vec3(d, sqrt(1. - r2));
     // свет справа сверху; блик медленно гуляет
     vec3 L = normalize(vec3(.78 + .06 * sin(t * .045), .3 + .05 * cos(t * .037), .52));
+    L = normalize(mix(L, normalize(u_mL), u_mreal)); // при наведении — настоящая фаза на сегодня
     float lam = max(dot(n, L), 0.);
     vec2 s = vec2(atan(n.x, n.z), asin(n.y));
     float mar = fbm(s * 1.5 + vec2(4.2, 1.3), 4);
@@ -100,7 +126,7 @@ void main() {
     float alb = mix(.92, .46, maria) * (.9 + .16 * grain) + cr.x * .08 * (1. - maria) - cr.y * .045;
     float lit = pow(lam, .8);
     vec3 mcol = vec3(.9, .93, .97) * alb * (.008 + 1.1 * lit);
-    mcol += vec3(.03, .045, .07) * (1. - lit) * .35; // пепельный свет
+    mcol += vec3(.03, .045, .07) * (1. - lit) * (.35 + 2.4 * u_mreal); // пепельный свет (при настоящей фазе — заметнее)
     float edge = smoothstep(1., .985, r);
     col = mix(col, mcol, edge * fillA);
   }
@@ -153,8 +179,11 @@ void main() {
     float appear = smoothstep(2.0 + float(i) * .03, 2.8 + float(i) * .03, e);
     float dpx = length(q - c) * qpx;
     float isSel = (i == u_sel) ? 1. : 0.;
-    float rr = 1.1 + br * 1.4 + isSel * (u_hover * 1.2 + u_open * 3.);
-    col += vec3(.86, .91, 1.) * (exp(-dpx * dpx / (rr * rr)) + .4 * exp(-dpx / (rr * 4.))) * (.35 + .9 * br) * appear;
+    float inC = (i >= u_hcon.x && i <= u_hcon.y) ? u_hk : 0.;
+    float isH = (i == u_hs) ? 1. : 0.;
+    float rr = 1.1 + br * 1.4 + isSel * (u_hover * 1.2 + u_open * 3.) + inC * .7 + isH * 1.4;
+    col += vec3(.86, .91, 1.) * (exp(-dpx * dpx / (rr * rr)) + .4 * exp(-dpx / (rr * 4.))) * (.35 + .9 * br) * (1. + inC * .5 + isH * .8) * appear;
+    col += vec3(.7, .8, .95) * exp(-pow(dpx - 11., 2.) * .3) * isH * .35 * appear; // кольцо у звезды под указателем
     if (i == u_sel) col += vec3(.8, .86, .95) * exp(-dpx / (10. + 30. * u_open)) * (.18 * u_hover + 1.2 * u_open) * appear;
   }
   for (int i = 0; i < 24; i++) {
@@ -164,7 +193,9 @@ void main() {
     float pr = ease3((e - 2.7 - float(i) * .14) / .5);
     if (pr <= 0.) continue;
     float dl = segDist(q, A, mix(A, B, pr)) * qpx;
-    col += vec3(.62, .72, .86) * exp(-dl * dl * 1.4) * .32;
+    int ia = int(u_cl[i].x), ib = int(u_cl[i].y);
+    float inL = (ia >= u_hcon.x && ia <= u_hcon.y && ib >= u_hcon.x && ib <= u_hcon.y) ? u_hk : 0.;
+    col += vec3(.62, .72, .86) * exp(-dl * dl * (1.4 - inL * .6)) * (.32 + .5 * inL);
   }
 
   // «Открыть карту»: небо гаснет, выбранная звезда раскрывается кругами карты с рисками

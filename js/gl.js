@@ -35,7 +35,13 @@
     return;
   }
 
-  const SH = window.SHADERS;
+  // исходники шейдеров лежат файлами в shaders/ и подгружаются сразу при старте
+  const SHADER_FILES = { common: 'glsl', hero: 'frag', intro: 'frag', sky: 'frag', quiet: 'frag', method: 'frag', lake: 'frag' };
+  const SH = {};
+  const shReady = Promise.all(Object.entries(SHADER_FILES).map(([n, ext]) =>
+    fetch(`shaders/${n}.${ext}`).then(r => (r.ok ? r.text() : Promise.reject(r.status))).then(t => { SH[n] = t; }, e => { SH[n] = false; console.error('шейдер ' + n + ' не загрузился:', e); })));
+  let shLoaded = false;
+  shReady.then(() => { shLoaded = true; kick(); });
   const VERT = '#version 300 es\nin vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
   const buf = gl.createBuffer();
   gl.bindBuffer(gl.ARRAY_BUFFER, buf);
@@ -49,7 +55,8 @@
   let vsShared = null;
   function startProgram(name) {
     if (progs[name]) return progs[name];
-    if (!SH || !SH[name]) return (progs[name] = { failed: true });
+    if (!shLoaded) return null; // исходники ещё в пути — кадр попросит снова
+    if (!SH.common || !SH[name]) return (progs[name] = { failed: true });
     if (!vsShared) { vsShared = gl.createShader(gl.VERTEX_SHADER); gl.shaderSource(vsShared, VERT); gl.compileShader(vsShared); }
     const fs = gl.createShader(gl.FRAGMENT_SHADER);
     gl.shaderSource(fs, '#version 300 es\nprecision highp float;\n' + SH.common + '\n' + SH[name]); gl.compileShader(fs);
@@ -70,7 +77,7 @@
   // очередь: сначала сцены, которые выше на странице
   let queued = false;
   function queueCompile() {
-    if (queued) return; queued = true;
+    if (queued || !shLoaded) return; queued = true;
     const names = [...new Set(views.slice().sort((a, b) => a.el.getBoundingClientRect().top - b.el.getBoundingClientRect().top).map(v => v.scene))];
     if (PAR) { names.forEach(startProgram); return; }
     const step = () => { const n = names.shift(); if (!n) return; startProgram(n); ready(n); setTimeout(step, 80); };
@@ -145,6 +152,7 @@
       ema = 16; emaN = 0;
     }
   }
+  Stage.clock = () => (performance.now() - t0) / 1000; // то же время, что u_time
   Stage.stats = () => ({ tier, frameMs: +ema.toFixed(1), cpuMs: +cpuEma.toFixed(2), dpr: S, canvas: [W, H] });
   // замер времени сцен на видеокарте: ?gpu — EXT_disjoint_timer_query_webgl2, среднее по последним кадрам
   const TQ = params.has('gpu') ? gl.getExtension('EXT_disjoint_timer_query_webgl2') : null;
@@ -180,7 +188,7 @@
       if (!v.visible) v.visible = true;
       any = true;
       if (!progs[v.scene]) startProgram(v.scene);
-      const P = ready(v.scene); if (!P) { if (!progs[v.scene].failed) pend = true; continue; }
+      const P = ready(v.scene); if (!P) { if (!(progs[v.scene] && progs[v.scene].failed)) pend = true; continue; }
       // отсчёт появления — с первого настоящего кадра сцены
       if (!v.seen) { v.seen = true; v.enterAt = now; }
       // вьюпорт — только видимая часть; шейдер знает начало вида (u_org) и его полный размер (u_res)

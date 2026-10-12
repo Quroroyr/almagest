@@ -82,6 +82,9 @@ void main() {
     vec2 uv = vec2((q.x - m.x * .01 - x0) / pw, (q.y - YW) / ph + WL);
     vec4 sh = plate(u_shore, uv);
     vec3 sc = sh.rgb * vec3(.8, .86, .97) * .85 + vec3(.5, .58, .7) * exp(-length(q - H) * 2.5) * cl * .2;
+    // за фразой по центру горы приглушены, чтобы текст читался
+    vec2 tq = (q - vec2(0., YW + .28)) * vec2(1.6, 3.2);
+    sc *= 1. - .5 * exp(-dot(tq, tq));
     col = mix(col, sc, sh.a * u_shoreOk);
   } else {
     // вода: отражение по линии горизонта, рябь сильнее вблизи
