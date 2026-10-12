@@ -38,7 +38,8 @@ void main() {
   vec2 q = viewQ(p);
   float t = u_time;
   float e = u_enter;
-  vec2 m = (u_mouse - .5) * u_mouseOn;
+  // слои картинки от курсора не двигаются; курсор даёт только мягкий свет и сдвиг звёздной пыли
+  vec2 m = vec2(0.);
   float portrait = 1. - smoothstep(.75, 1.2, a);
   int O = oct(5);
 

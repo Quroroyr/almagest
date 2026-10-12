@@ -11,7 +11,7 @@ uniform vec3 u_cam, u_cf, u_cr, u_cu;
 uniform float u_fl;
 
 const float EPS = .40910518; // наклон эклиптики
-const float RE = .36;        // радиус Земли внутри сферы (не в масштабе)
+const float RE = .17;        // радиус Земли внутри сферы (не в масштабе)
 
 vec2 sph(vec3 ro, vec3 rd, float r) {
   float b = dot(ro, rd), c = dot(ro, ro) - r * r, h = b * b - c;
@@ -47,7 +47,7 @@ vec3 shellMarks(vec3 n, float w, float back, out float a) {
   float drawT = u_enter * .9 - .2;
   vec3 col = vec3(0); a = 0.;
   float cl = constLines(n, w, drawT);
-  col += vec3(.68, .78, .92) * cl * .55; a += cl * .5;
+  col += vec3(.72, .82, .96) * cl * .9; a += cl * .75;
   vec3 pole = vec3(0., -sin(EPS), cos(EPS));
   float appear = smoothstep(.2, 1.2, u_enter);
   float ecl = greatCircle(n, pole, w * 1.2);
@@ -59,20 +59,27 @@ vec3 shellMarks(vec3 n, float w, float back, out float a) {
   float t30 = 1. - smoothstep(.0, .5, abs(fract(lon / 30. + .5) - .5) * 30. / (w * 57.3 * 1.6));
   float eclA = (ecl * .9 + inBand * (t10 * .35 + t30 * .9)) * appear;
   col += vec3(.86, .9, .97) * eclA * .55; a += eclA * .45;
-  float eq = greatCircle(n, vec3(0, 0, 1), w) * .25 * appear;
-  col += vec3(.55, .65, .8) * eq; a += eq * .3;
+  float eq = greatCircle(n, vec3(0, 0, 1), w) * .35 * appear;
+  col += vec3(.55, .65, .8) * eq; a += eq * .4;
+  // сетка: часовые круги через 2 ч и параллели ±30°, ±60° — как на настоящей небесной сфере
+  float ra = atan(n.y, n.x), dec = asin(clamp(n.z, -1., 1.));
+  float cosd = max(cos(dec), .05);
+  float mer = exp(-pow(abs(fract(ra / (PI / 6.) + .5) - .5) * (PI / 6.) * cosd / w, 2.));
+  float par = exp(-pow(abs(fract(dec / (PI / 6.) + .5) - .5) * (PI / 6.) / w, 2.)) * step(.2, abs(dec));
+  float grid = max(mer, par) * .16 * appear;
+  col += vec3(.5, .6, .76) * grid; a += grid * .25;
   // планеты
   for (int i = 0; i < 10; i++) {
     vec3 P = u_pl[i];
     float d = length(n - P);
     float hl = i == u_hl ? 1. : 0.;
-    float r = w * (i == 0 ? 6. : i == 1 ? 4.5 : i == 5 || i == 6 ? 3.6 : 3.) * (1. + hl * .5);
+    float r = w * (i == 0 ? 9. : i == 1 ? 6.5 : i == 5 || i == 6 ? 5.2 : 4.4) * (1. + hl * .5);
     vec3 pc = i == 0 ? vec3(1., .95, .86) : i == 1 ? vec3(.92, .95, 1.) : vec3(.78, .86, .98);
     float g = exp(-d * d / (r * r)) + .35 * exp(-d / (r * 2.5));
     float ring = hl * exp(-pow((d - r * 3.2) / (w * 1.2), 2.));
     float k = smoothstep(.6 + float(i) * .08, 1.2 + float(i) * .08, u_enter);
-    col += pc * (g * (i == 0 ? 1.5 : 1.) + ring) * k;
-    a += (g * .9 + ring) * k;
+    col += pc * (g * (i == 0 ? 2.4 : 1.6) + ring) * k;
+    a += (g + ring) * k;
   }
   col *= back; a *= back;
   return col;
@@ -92,45 +99,55 @@ void main() {
   vec3 col = vec3(0); float alpha = 0.;
   // мягкое свечение вокруг сферы
   float dmin = length(cross(ro, rd));
-  float halo = exp(-max(dmin - 1., 0.) * 9.) * .22 * appear;
+  float halo = exp(-max(dmin - 1., 0.) * 14.) * .1 * appear;
   col += vec3(.32, .45, .68) * halo; alpha += halo * .8;
 
   vec2 hs = sph(ro, rd, 1.);
+  vec2 he = sph(ro, rd, RE);
+  // ось мира — тонкий стержень через полюса, за Землёй не виден
+  {
+    vec3 ax = vec3(0, 0, 1);
+    vec3 w0 = ro; float b = dot(rd, ax), d = dot(rd, w0), e = dot(ax, w0);
+    float den = 1. - b * b;
+    float tr = (b * e - d) / max(den, 1e-4), ta = (e - b * d) / max(den, 1e-4);
+    float dist = length((ro + rd * tr) - ax * ta);
+    float onAxis = step(abs(ta), 1.18) * step(0., tr);
+    if (he.x > 0. && tr > he.x) onAxis = 0.;
+    float axl = exp(-pow(dist / (w * 1.2), 2.)) * onAxis * .5 * appear;
+    col += vec3(.7, .78, .9) * axl; alpha += axl * .6;
+  }
   if (hs.x > 0.) {
     vec3 n0 = normalize(ro + rd * hs.x), n1 = normalize(ro + rd * hs.y);
-    vec2 he = sph(ro, rd, RE);
     vec4 acc = vec4(0.);
     if (he.x > 0.) {
-      // Земля: день и ночь по настоящему направлению на Солнце
+      // Земля: день и ночь по настоящему направлению на Солнце, тонкая атмосфера
       vec3 ne = normalize(ro + rd * he.x);
       float day = dot(ne, sun);
-      float lit = smoothstep(-.08, .35, day);
-      // облака вращаются вместе с Землёй (звёздное время)
+      float lit = smoothstep(-.12, .3, day);
       float g = -u_gmst;
       vec3 er = vec3(ne.x * cos(g) - ne.y * sin(g), ne.x * sin(g) + ne.y * cos(g), ne.z);
-      float cloud = smoothstep(.52, .8, fbm3(er * 3.4, oct(5)));
-      vec3 ec = mix(vec3(.05, .1, .19), vec3(.2, .34, .52), .35) * (.06 + 1.1 * lit) + vec3(.82, .86, .92) * cloud * lit * .55;
-      float rim = pow(1. - max(dot(ne, -rd), 0.), 2.6);
-      ec += vec3(.3, .52, .9) * rim * (.15 + .85 * smoothstep(-.25, .45, day)) * .7;
-      // твой город — светлая точка на поверхности
+      float tone = fbm3(er * 2.2, 4);
+      vec3 ec = mix(vec3(.035, .075, .15), vec3(.07, .12, .19), smoothstep(.45, .65, tone));
+      ec *= .12 + 1.6 * lit;
+      ec += vec3(.9, .95, 1.) * pow(max(dot(reflect(rd, ne), sun), 0.), 30.) * .25 * lit;
+      float rim = pow(1. - max(dot(ne, -rd), 0.), 2.4);
+      ec += vec3(.32, .55, .95) * rim * (.12 + .88 * smoothstep(-.3, .4, day)) * .8;
       float ra = u_gmst + u_city.y;
       vec3 cv = vec3(cos(u_city.x) * cos(ra), cos(u_city.x) * sin(ra), sin(u_city.x));
       float cd = length(ne - cv);
       ec += vec3(.95, .97, 1.) * exp(-cd * cd / (w * w * 9. / (RE * RE))) * .9;
       acc = vec4(ec * appear, appear);
     } else {
-      float ab; vec3 bc = shellMarks(n1, w, .32, ab);
-      acc = vec4(bc + vec3(.03, .05, .09) * .5, clamp(ab + .25, 0., 1.)) * appear;
+      float ab; vec3 bc = shellMarks(n1, w, .3, ab);
+      acc = vec4(bc, clamp(ab, 0., 1.)) * appear;
     }
-    // стекло: лёгкий холодный тон и блик со стороны Солнца
-    float fres = pow(1. - max(dot(n0, -rd), 0.), 3.);
-    float spec = pow(max(dot(reflect(rd, n0), sun), 0.), 40.);
-    vec3 gc = vec3(.08, .12, .2) + vec3(.4, .55, .8) * fres * .6;
-    float ga = (.16 + fres * .5) * appear;
-    acc = vec4(gc * ga + acc.rgb * (1. - ga), ga + acc.a * (1. - ga));
+    // оболочки нет — только тонкая кромка сферы
+    float fres = pow(1. - max(dot(n0, -rd), 0.), 5.);
+    float ga = fres * .35 * appear;
+    acc = vec4(vec3(.45, .58, .82) * ga + acc.rgb * (1. - ga), ga + acc.a * (1. - ga));
     float fa; vec3 fc = shellMarks(n0, w, 1., fa);
-    acc.rgb += fc * appear + vec3(1., .97, .92) * spec * .5 * appear;
-    acc.a = clamp(acc.a + fa * appear + spec * .3, 0., 1.);
+    acc.rgb += fc * appear;
+    acc.a = clamp(acc.a + fa * appear, 0., 1.);
     col = acc.rgb + col * (1. - acc.a);
     alpha = acc.a + alpha * (1. - acc.a);
   }

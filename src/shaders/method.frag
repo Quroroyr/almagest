@@ -44,7 +44,9 @@ vec2 scene(vec3 p) {
   // ось и Земля в центре
   d = sdCap(q, vec3(0., -1.2, 0.), vec3(0., 1.2, 0.), .014);
   if (d < res.x) res = vec2(d, 5.);
-  d = length(q) - .15 * (.4 + .6 * ASM[5]);
+  d = min(length(q - vec3(0., 1.22, 0.)), length(q + vec3(0., 1.22, 0.))) - .035;
+  if (d < res.x) res = vec2(d, 5.);
+  d = length(q) - .13 * (.4 + .6 * ASM[5]);
   if (d < res.x) res = vec2(d, 6.);
   // подставка
   d = sdCyl(p - vec3(0., -1.42, 0.), .035, .26);
@@ -99,12 +101,17 @@ void main() {
     float h = hash12(gi);
     motes = step(.93, h) * exp(-dot(gf, gf) * 40.) * (.5 + .5 * sin(T * 1.7 + h * 30.));
   }
-  col += vec3(.45, .55, .7) * beam * (.16 + motes * 1.6) * beamK;
+  col += vec3(.45, .55, .7) * beam * (.16 + motes * 1.6 * smoothstep(.05, .4, beam)) * beamK;
   // слева темнее — тексту нужен спокойный фон
 
   // армиллярная сфера справа (на телефоне — сверху)
-  vec2 ac = mix(vec2(a * .24, -.04), vec2(0., topQ), portrait);
-  float scale = mix(.3, 150. * u_px / u_res.y / .63, portrait);
+  vec2 ac = mix(vec2(a * .22, -.1), vec2(0., topQ), portrait);
+  float scale = mix(.25, 150. * u_px / u_res.y / .63, portrait);
+  // контактная тень основания на полу — инструмент стоит, а не висит
+  vec2 base = ac + vec2(.02 * scale, -1.76 * .52 * scale);
+  vec2 sd = (q - base) / (vec2(.62, .1) * .52 * scale * 1.6);
+  vec2 sd2 = sd * vec2(.5, .8) - vec2(.25, 0.);
+  col *= 1. - .55 * exp(-dot(sd, sd) * 1.6) - .25 * exp(-dot(sd2, sd2) * 1.2);
   // слева (на телефоне — ниже инструмента) темнее: тексту нужен спокойный фон
   float below = smoothstep(.5 - 430. * u_px / u_res.y, .5 - 500. * u_px / u_res.y, q.y);
   float textSide = mix(smoothstep(.15 * a, -.45 * a, q.x), below * .9, portrait);
@@ -112,7 +119,7 @@ void main() {
   vec2 uv = (q - ac) / scale;
   vec3 ro = vec3(0., .25, 4.6);
   vec3 rd = normalize(vec3(uv, -2.4) + vec3(0., -.05, 0.));
-  float yaw = .35 + (u_mouse.x - .5) * .25 * u_mouseOn;
+  float yaw = .35;
   ro = rotY(yaw) * ro; rd = rotY(yaw) * rd;
   // ограничивающая сфера
   float b = dot(ro, rd), c0 = dot(ro, ro) - 3.6, h0 = b * b - c0;
@@ -129,11 +136,13 @@ void main() {
     }
     if (hit.x > 0.) {
       vec3 pos = ro + rd * hit.x, n = normalAt(pos);
-      vec3 Lm = normalize(vec3(.55, .45, -.7));   // луна из окна — контровой
-      vec3 Ll = normalize(vec3(-.8, .25, .55));   // тёплая лампа на столе — чуть-чуть
+      vec3 Lm = normalize(vec3(-.45, .5, -.72));  // луна из окна за инструментом — контровой
+      vec3 Ll = normalize(vec3(-.9, .12, .4));    // лампа на столе слева — тёплая, слабая
       float id = hit.y;
-      vec3 brass = mix(vec3(.5, .44, .34), vec3(.46, .48, .52), .55);
-      vec3 alb = id == 4. ? brass * 1.1 : id == 6. ? vec3(.3, .4, .55) : id == 7. ? vec3(.12, .11, .1) : brass;
+      // латунь с патиной: пятна зеленоватого окисла
+      float pat = smoothstep(.45, .75, fbm3(pos * 7., 3));
+      vec3 brass = mix(vec3(.62, .47, .27), vec3(.33, .37, .31), pat * .6);
+      vec3 alb = id == 4. ? brass * 1.08 : id == 6. ? vec3(.22, .3, .4) : id == 7. ? vec3(.2, .16, .11) : brass;
       // риски на эклиптике
       if (id == 4.) {
         vec3 q2 = rotX(.409) * (rotY(-T * .11 + (1. - ASM[3]) * 3.) * (rotZ(-.6) * pos));
@@ -147,17 +156,25 @@ void main() {
       float spm = pow(max(dot(reflect(-Lm, n), V), 0.), 36.), spl = pow(max(dot(reflect(-Ll, n), V), 0.), 24.);
       float rim = pow(1. - max(dot(n, V), 0.), 3.);
       float ao = clamp(scene(pos + n * .06).x / .06, 0., 1.);
-      vec3 lc = alb * (vec3(.05, .065, .09) * (.4 + .6 * ao)
-        + vec3(.55, .65, .82) * dm * shm * (.5 + .7 * beamK)
-        + vec3(.85, .68, .45) * dl * sh * .32)
-        + vec3(.75, .85, 1.) * (spm * shm * (.9 + beamK) + rim * .22 * (.4 + beamK))
-        + vec3(1., .82, .58) * spl * sh * .25;
+      // отражение комнаты: размытый кусок фото рядом с точкой, смещённый по отражённому лучу
+      vec3 R = reflect(rd, n);
+      vec2 hq = ac + (pos.xy - vec2(0., .25)) * .52 * scale;
+      vec2 anc = vec2(mix(.6, .66, portrait), .4);
+      vec3 env = textureLod(u_room, coverUV(hq + R.xy * .22, a, 1.833, anc), 4.5).rgb * u_roomOk;
+      vec3 amb = textureLod(u_room, coverUV(hq, a, 1.833, anc), 7.).rgb * u_roomOk;
+      float fres = .35 + .65 * pow(1. - max(dot(n, V), 0.), 4.);
+      vec3 lc = alb * (amb * 1.4 * (.5 + .5 * ao) + vec3(.5, .62, .85) * dm * shm * .35 * (.6 + beamK) + vec3(.9, .7, .45) * dl * sh * .3);
+      lc += env * mix(alb, vec3(1.), .25) * fres * 1.6 * ao;
+      // контровой свет из окна по кромкам и блики
+      lc += vec3(.62, .74, .95) * rim * smoothstep(-.2, .6, dot(n, Lm)) * .55 * (.5 + beamK);
+      lc += mix(alb, vec3(1.), .4) * (vec3(.7, .82, 1.) * spm * shm * (.6 + beamK) + vec3(1., .8, .55) * spl * sh * .35);
       col = lc;
     } else {
       // тень инструмента на полу не рисуем; лёгкое свечение вокруг сферы от окна
       col += vec3(.3, .38, .5) * exp(-dot(uv, uv) * .9) * .04 * beamK;
     }
   }
+  col += (hash12(p + fract(T * 13.) * 91.) - .5) * .022; // зерно, как у фото
   // мягкие края вида
   float fadePx = 120. * u_px;
   float edge = smoothstep(0., fadePx, p.y) * smoothstep(0., fadePx, u_res.y - p.y);

@@ -67,7 +67,7 @@ void main() {
   // берег: ширина «по экрану», линия воды на YW
   float pw = a + mix(0., 1.1, portrait), ph = pw / 2.816;
   float x0 = -a * .5 - (pw - a) * .7;
-  vec2 m = (u_mouse - .5) * u_mouseOn;
+  vec2 m = vec2(0.);
   float k = cometK();
   float cl = k >= 0. ? clamp(1. - (u_comet - 3.6) / 3., 0., 1.) * smoothstep(0., .2, k) : 0.;
   vec2 H = k >= 0. ? cometPos(clamp(k, 0., 1.) * clamp(k, 0., 1.) * (3. - 2. * clamp(k, 0., 1.))) : vec2(9.);

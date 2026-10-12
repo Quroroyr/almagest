@@ -223,7 +223,8 @@ table.eph .rx { display: none; color: var(--tense); margin-left: 4px; font-style
 .card dd { margin: 0; color: var(--moon); }
 .cards.focus .card { opacity: .34; filter: saturate(.6); }
 .cards.focus .card.hl { opacity: 1; filter: none; border-color: var(--line-strong); transform: translateX(4px); }
-.cards .card.hl::before { opacity: 1; }
+.cards .card.hl::before, .cards .card.auto::before { opacity: 1; }
+.cards .card.auto { border-color: var(--line-strong); }
 .js .cards .card { opacity: 0; transform: translateY(8px); }
 .js .cards.built .card { opacity: 1; transform: none; transition-delay: calc(var(--i) * 70ms); }
 .js .cards.built.focus .card { transition-delay: 0s; }
@@ -235,14 +236,15 @@ table.eph .rx { display: none; color: var(--tense); margin-left: 4px; font-style
 .connector circle { fill: var(--moon); }
 
 /* ——— 06 совместимость ——— */
-.pair-stage { position: relative; margin-top: clamp(28px, 4vw, 48px); }
-.pair-canvas { position: relative; width: 100%; aspect-ratio: 16 / 7.4; min-height: 340px; }
+.pair-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 64px); align-items: start; margin-top: clamp(28px, 4vw, 48px); }
+.pair-visual { position: sticky; top: 84px; }
+.pair-canvas { position: relative; width: 100%; aspect-ratio: 1.42; max-height: calc(100svh - 120px); }
 .pair-canvas canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-.pair-form { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); gap: 18px clamp(18px, 4vw, 60px); align-items: end; margin-top: -10px; position: relative; }
+.pair-form { display: grid; gap: 18px; }
 .pair-form fieldset { border: 0; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; min-width: 0; }
 .pair-form legend { padding: 0; margin-bottom: 10px; font: 500 1.15rem/1.2 var(--f-display); letter-spacing: .06em; }
 .pair-form .sign { font: 400 1rem/1 var(--f-sym); color: var(--steel); margin-left: 8px; }
-.pair-result { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: clamp(24px, 4vw, 64px); margin-top: clamp(40px, 5vw, 64px); align-items: start; }
+.pair-form .btn { justify-self: start; }
 .verdict { margin: 0 0 18px; font: 400 clamp(1.35rem, 2.3vw, 1.9rem)/1.3 var(--f-display); text-wrap: balance; }
 .counts { display: flex; gap: 28px; flex-wrap: wrap; margin: 0; padding: 0; list-style: none; }
 .counts li { display: grid; gap: 2px; }
@@ -305,7 +307,8 @@ footer p { margin: 0; max-width: 70ch; }
 footer .brand-f { font: 500 .95rem/1 var(--f-display); letter-spacing: .34em; text-transform: uppercase; color: var(--moon); }
 
 /* ——— адаптив ——— */
-.chart-grid > *, .now-grid > *, .pair-result > * { min-width: 0; }
+.chart-grid > *, .now-grid > *, .pair-grid > * { min-width: 0; }
+[hidden] { display: none !important; }
 @media (max-width: 1080px) {
   .nav { display: none; }
   .burger { display: block; }
@@ -313,7 +316,8 @@ footer .brand-f { font: 500 .95rem/1 var(--f-display); letter-spacing: .34em; te
   .offers .offer:last-child { grid-column: 1 / -1; }
 }
 @media (max-width: 960px) {
-  .now-grid, .chart-grid, .pair-result { grid-template-columns: minmax(0, 1fr); }
+  .now-grid, .chart-grid, .pair-grid { grid-template-columns: minmax(0, 1fr); }
+  .pair-visual { position: relative; top: 0; }
   .now-grid .globe { order: -1; max-width: 520px; }
   .wheel-col { position: relative; top: 0; order: -1; }
   .universe .stage { grid-template-columns: 1fr; align-content: end; }
@@ -328,9 +332,8 @@ footer .brand-f { font: 500 .95rem/1 var(--f-display); letter-spacing: .34em; te
   .hero-foot { bottom: 18px; }
   .scroll-cue { display: none; }
   .birth .coords { grid-template-columns: 1fr 1fr; }
-  .pair-canvas { aspect-ratio: 4 / 3.4; min-height: 0; }
-  .pair-form { grid-template-columns: 1fr; margin-top: 10px; }
-  .pair-form .vs { display: none; }
+  .pair-canvas { aspect-ratio: 4 / 3.4; }
+  .pair-form .btn { justify-self: stretch; }
   .offers { grid-template-columns: 1fr; }
   .timebar { grid-template-columns: 1fr auto auto; }
   section.method-sec { padding-top: 470px; align-items: start; }
@@ -468,28 +471,28 @@ footer .brand-f { font: 500 .95rem/1 var(--f-display); letter-spacing: .34em; te
   <section class="scene pair" id="pair" aria-labelledby="pairH">
     <h2 class="h2" id="pairH">Совместимость</h2>
     <p class="sub">два неба — одна история</p>
-    <div class="pair-stage">
-      <div class="pair-canvas"><canvas id="pairCanvas" role="img" aria-label="Два звёздных силуэта; после сравнения между ними проложены рассчитанные связи планет"></canvas></div>
-      <form class="pair-form" id="pairForm" novalidate>
-        <fieldset><legend>Первый человек<span class="sign sym" id="signA"></span></legend>
-          <div class="field"><label for="aName">Имя</label><input id="aName" type="text" value="Аня" maxlength="24" autocomplete="off"></div>
-          <div class="field"><label for="aDate">Дата рождения</label><input id="aDate" type="date" value="1996-03-02" min="1900-01-01" max="2099-12-31"></div>
-        </fieldset>
-        <button class="btn solid" type="submit">Сравнить</button>
-        <fieldset><legend>Второй человек<span class="sign sym" id="signB"></span></legend>
-          <div class="field"><label for="cName">Имя</label><input id="cName" type="text" value="Дима" maxlength="24" autocomplete="off"></div>
-          <div class="field"><label for="cDate">Дата рождения</label><input id="cDate" type="date" value="1994-08-19" min="1900-01-01" max="2099-12-31"></div>
-        </fieldset>
-      </form>
-    </div>
-    <div class="pair-result">
-      <div>
-        <p class="chart-meta" id="pairSample" style="justify-content:flex-start;margin:0 0 14px"><span class="sample">Пример</span><span>введи свои даты выше</span></p>
+    <div class="pair-grid">
+      <div class="pair-visual">
+        <div class="pair-canvas"><canvas id="pairCanvas" role="img" aria-label="Два звёздных силуэта; после сравнения между ними проложены рассчитанные связи планет"></canvas></div>
+      </div>
+      <div class="pair-side">
+        <form class="pair-form" id="pairForm" novalidate>
+          <fieldset><legend>Первый человек<span class="sign sym" id="signA"></span></legend>
+            <div class="field"><label for="aName">Имя</label><input id="aName" type="text" value="Аня" maxlength="24" autocomplete="off"></div>
+            <div class="field"><label for="aDate">Дата рождения</label><input id="aDate" type="date" value="1996-03-02" min="1900-01-01" max="2099-12-31"></div>
+          </fieldset>
+          <fieldset><legend>Второй человек<span class="sign sym" id="signB"></span></legend>
+            <div class="field"><label for="cName">Имя</label><input id="cName" type="text" value="Дима" maxlength="24" autocomplete="off"></div>
+            <div class="field"><label for="cDate">Дата рождения</label><input id="cDate" type="date" value="1994-08-19" min="1900-01-01" max="2099-12-31"></div>
+          </fieldset>
+          <button class="btn solid" type="submit">Сравнить</button>
+        </form>
+        <p class="chart-meta" id="pairSample" style="justify-content:flex-start;margin:28px 0 14px"><span class="sample">Пример</span><span>введи свои даты выше</span></p>
         <p class="verdict" id="verdict"></p>
         <ul class="counts" aria-label="Число связей между картами"><li><b id="cntAll">0</b><span>связей всего</span></li><li><b id="cntEasy">0</b><span>лёгких</span></li><li><b id="cntHard">0</b><span>напряжённых</span></li></ul>
-        <p class="note" style="margin-top:22px">Процентов «совпадения» здесь нет: показаны только углы между планетами, которые реально посчитаны. Время рождения не нужно — берётся полдень, поэтому Луна может сместиться на несколько градусов.</p>
+        <p class="note" style="margin:20px 0 26px">Процентов «совпадения» здесь нет: показаны только углы между планетами, которые реально посчитаны. Время рождения не нужно — берётся полдень, поэтому Луна может сместиться на несколько градусов. Наведи на связь — она подсветится на рисунке.</p>
+        <ul class="links" id="pairReading"></ul>
       </div>
-      <ul class="links" id="pairReading"></ul>
     </div>
   </section>
 

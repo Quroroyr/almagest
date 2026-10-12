@@ -466,7 +466,9 @@
   }
 
   const wheel = $('wheel');
-  const W = { chart: null, prev: null, start: -1e9, morph: false, hover: null, hits: [], layer: null, s: 0, dpr: 1, dim: 0, playing: false };
+  const W = { chart: null, prev: null, start: -1e9, morph: false, hover: null, auto: null, hits: [], layer: null, s: 0, dpr: 1, dim: 0, playing: false, visible: false };
+  // звёзды внутри круга — медленно плывут, пока карта на экране
+  const WSTARS = (() => { let k = 99; const r = () => ((k = (k * 1664525 + 1013904223) >>> 0) / 4294967296); return Array.from({ length: 150 }, () => ({ r: Math.sqrt(r()), a: r() * 6.283, m: Math.pow(r(), 3), p: r() * 6.283 })); })();
   function sizeWheel() {
     const r = wheel.getBoundingClientRect(), dpr = Math.min(2, window.devicePixelRatio || 1);
     W.s = r.width; W.dpr = dpr;
@@ -504,7 +506,7 @@
     const A = lon => Math.PI - (lon - rot) * RAD; // асцендент слева, знаки против часовой
     const P = (lon, r) => [cx + Math.cos(A(lon)) * r, cy + Math.sin(A(lon)) * r];
     const lay = W.layer;
-    const hv = W.hover;
+    const hv = W.hover || W.auto;
     // 1. световая точка в центре
     const pPoint = morph ? 1 : at(T, 0, 0.35);
     const pointFade = morph ? 0 : 1 - at(T, 0.9, 1.5);
@@ -573,6 +575,20 @@
     // круг аспектов
     g.strokeStyle = lineCol(0.3); g.lineWidth = 0.6; g.globalAlpha = morph ? 1 : at(T, 1.2, 1.7);
     g.beginPath(); g.arc(cx, cy, rAsp, 0, Math.PI * 2); g.stroke(); g.globalAlpha = 1;
+    // звёздное поле внутри круга — живёт, пока карта на экране
+    const kStars = morph ? 1 : at(T, 1.0, 2.2);
+    if (kStars > 0) {
+      const tt = REDUCED ? 0 : now / 1000;
+      for (const st of WSTARS) {
+        const ang = st.a + tt * 0.012, rr = st.r * rAsp * 0.96;
+        const x = cx + Math.cos(ang) * rr, y = cy + Math.sin(ang) * rr;
+        g.globalAlpha = kStars * (0.12 + 0.55 * st.m) * (0.7 + 0.3 * Math.sin(tt * 1.3 + st.p));
+        g.fillStyle = COL.moonDim;
+        const sz = 0.6 + st.m * 1.4;
+        g.fillRect(x - sz / 2, y - sz / 2, sz, sz);
+      }
+      g.globalAlpha = 1;
+    }
     // 4. планеты; при пересчёте — переезд из старых положений
     const lonOf = k => { const n = ch.pts.find(t => t.key === k); if (!morph) return n.lon; const o = W.prev.pts.find(t => t.key === k); return o ? lerpAng(o.lon, n.lon, mk) : n.lon; };
     const pts = ch.pts.map(t => ({ ...t, lon: lonOf(t.key) }));
@@ -598,6 +614,24 @@
       if (out > 0) { g.save(); g.globalAlpha = out; drawAsp(W.prev.asps, () => out); g.restore(); }
       drawAsp(ch.asps, i => at(T, 0.6 + i * 0.03, 1.0 + i * 0.03));
     } else drawAsp(ch.asps, i => at(T, 2.0 + i * 0.045, 2.35 + i * 0.045));
+    // по линиям аспектов бегут огоньки — карта не застывает
+    const kPulse = REDUCED ? 0 : (morph ? at(T, 1.3, 1.9) : at(T, 3.0, 3.8));
+    if (kPulse > 0) {
+      const tt = now / 1000;
+      ch.asps.forEach((a, i) => {
+        if (a.key === 'conj') return;
+        const pa = pts.find(t => t.key === a.a), pb = pts.find(t => t.key === a.b); if (!pa || !pb) return;
+        const on = !hv || a.a === hv || a.b === hv;
+        const ph = (tt / (5 + (i % 4)) + i * 0.37) % 1;
+        const [x1, y1] = P(pa.lon, rAsp), [x2, y2] = P(pb.lon, rAsp);
+        const x = x1 + (x2 - x1) * ph, y = y1 + (y2 - y1) * ph;
+        const al = Math.sin(ph * Math.PI) * kPulse * (on ? (hv ? 0.95 : 0.5) : 0.08);
+        const rr = hv && on ? 9 : 6;
+        const rg = g.createRadialGradient(x, y, 0, x, y, rr);
+        rg.addColorStop(0, `rgba(235, 242, 250, ${al})`); rg.addColorStop(1, 'rgba(235, 242, 250, 0)');
+        g.fillStyle = rg; g.fillRect(x - rr, y - rr, rr * 2, rr * 2);
+      });
+    }
     // планеты — проявляются по яркости, каждая с короткой вспышкой
     W.hits = [];
     const placed = placeGlyphs(pts, s < 520 ? 17 : 10);
@@ -656,11 +690,31 @@
     Stage.invalidate();
   }
   Stage.onFrame(now => {
-    if (!W.playing) return false;
-    W.playing = renderNatal(now);
-    if (!W.playing) renderNatal(now);
-    return W.playing;
+    const auto = autoKey();
+    if (auto !== W.auto) { W.auto = auto; markAuto(); }
+    if (!W.playing && !(W.visible && !REDUCED)) return false;
+    const playing = renderNatal(now);
+    if (W.playing && !playing) { W.playing = false; renderNatal(now); }
+    return W.playing || (W.visible && !REDUCED);
   });
+  new IntersectionObserver(es => { for (const e of es) { W.visible = e.isIntersecting; if (W.visible) Stage.invalidate(); } }).observe(wheel);
+  // карточка ближе всех к середине экрана — её планета выделяется на круге (только когда круг рядом, на широком экране)
+  function autoKey() {
+    if (W.hover || !W.visible || window.innerWidth <= 960 || W.playing) return null;
+    const mid = window.innerHeight * 0.5;
+    let best = null, bd = 1e9;
+    for (const c of document.querySelectorAll('#reading .card')) {
+      const r = c.getBoundingClientRect();
+      if (r.bottom < 90 || r.top > window.innerHeight - 60) continue;
+      const d = Math.abs((r.top + r.bottom) / 2 - mid);
+      if (d < bd) { bd = d; best = c.dataset.key; }
+    }
+    return bd < window.innerHeight * 0.32 ? best : null;
+  }
+  function markAuto() {
+    for (const c of document.querySelectorAll('#reading .card')) c.classList.toggle('auto', c.dataset.key === W.auto);
+    if (!W.hover) { connPath.style.transition = 'none'; updateConnector(true); }
+  }
   const redrawWheel = () => renderNatal(performance.now());
   Stage.view($('chart'), 'quiet', { uniforms: (gl, L) => { gl.uniform1f(L('u_variant'), 1); gl.uniform1f(L('u_dim'), W.dim); } });
 
@@ -678,7 +732,7 @@
     updateConnector(true);
   }
   function updateConnector(restart) {
-    const key = W.hover;
+    const key = W.hover || W.auto;
     const card = key && $('reading').querySelector(`.card[data-key="${key}"]`);
     const hit = key && W.hits.find(h => h.key === key);
     if (!card || !hit) { connPath.setAttribute('d', ''); connDot.setAttribute('r', 0); return; }
@@ -687,8 +741,14 @@
     const x0 = wr.left + hit.x, y0 = wr.top + hit.y;
     const side = cr.right < wr.left + 20; // карточка слева от круга
     const x1 = side ? cr.right : cr.left + cr.width / 2, y1 = side ? cr.top + Math.min(cr.height / 2, 34) : cr.top;
-    const mx = side ? (x0 + x1) / 2 : x0;
-    const d = side ? `M${x0},${y0} C${mx},${y0} ${mx},${y1} ${x1},${y1}` : `M${x0},${y0} C${x0},${(y0 + y1) / 2} ${x1},${(y0 + y1) / 2} ${x1},${y1}`;
+    // линия выходит из планеты наружу по радиусу, обходит круг по внешней кромке и уходит к карточке
+    const wcx = wr.left + wr.width / 2, wcy = wr.top + wr.height / 2, Ro = wr.width * 0.49;
+    const tp = Math.atan2(y0 - wcy, x0 - wcx);
+    const tc = Math.atan2(y1 - wcy, x1 - wcx);
+    let dt = tc - tp; while (dt > Math.PI) dt -= 2 * Math.PI; while (dt < -Math.PI) dt += 2 * Math.PI;
+    const ax = wcx + Math.cos(tp) * Ro, ay = wcy + Math.sin(tp) * Ro;
+    const bx = wcx + Math.cos(tp + dt) * Ro, by = wcy + Math.sin(tp + dt) * Ro;
+    const d = `M${x0},${y0} L${ax},${ay} A${Ro},${Ro} 0 0 ${dt > 0 ? 1 : 0} ${bx},${by} C${(bx + x1) / 2},${by} ${(bx + x1) / 2},${y1} ${x1},${y1}`;
     connPath.setAttribute('d', d);
     const grad = document.getElementById('cg'); grad.setAttribute('x1', x0); grad.setAttribute('y1', y0); grad.setAttribute('x2', x1); grad.setAttribute('y2', y1);
     connDot.setAttribute('cx', x0); connDot.setAttribute('cy', y0); connDot.setAttribute('r', 2.5);
@@ -699,7 +759,7 @@
       connPath.style.transition = 'stroke-dashoffset .5s cubic-bezier(.2,.7,.2,1)'; connPath.style.strokeDashoffset = 0;
     }
   }
-  Stage.onFrame(() => { if (W.hover) updateConnector(false); return false; });
+  Stage.onFrame(() => { if (W.hover || W.auto) updateConnector(false); return false; });
   wheel.addEventListener('pointermove', e => {
     const r = wheel.getBoundingClientRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     const h = W.hits.find(t => Math.hypot(t.x - x, t.y - y) < t.r);
@@ -767,6 +827,15 @@
     }
     const [name, lat, lon, tz] = CITIES[+citySel.value]; return { name, lat, lon, tz };
   }
+  // дата рождения: заполнена и в пределах 1900–2099, иначе — подсказка у поля
+  function validDate(inp) {
+    const v = inp.value, y = +v.slice(0, 4);
+    const msg = !v ? 'Укажи дату рождения' : y < 1900 || y > 2099 ? 'Год — от 1900 до 2099' : '';
+    inp.setCustomValidity(msg);
+    if (msg) { inp.reportValidity(); inp.focus(); return false; }
+    return true;
+  }
+  for (const id of ['bDate', 'aDate', 'cDate']) $(id).addEventListener('input', e => e.target.setCustomValidity(''));
   function localToUTC(dateStr, timeStr, tz) {
     const [y, m, d] = dateStr.split('-').map(Number), [hh, mm] = (timeStr || '12:00').split(':').map(Number);
     return new Date(Date.UTC(y, m - 1, d, hh, mm) - tz * 3600e3);
@@ -774,8 +843,7 @@
   $('birthForm').addEventListener('submit', e => {
     e.preventDefault();
     const ds = $('bDate').value;
-    if (!ds) { $('bDate').setCustomValidity('Укажи дату рождения'); $('bDate').reportValidity(); $('bDate').focus(); return; }
-    $('bDate').setCustomValidity('');
+    if (!validDate($('bDate'))) return;
     const noTime = $('bNoTime').checked;
     const place = readPlace();
     const ch = buildChart(localToUTC(ds, noTime ? '12:00' : $('bTime').value, place.tz), place, !noTime);
@@ -942,7 +1010,7 @@
   function computePair(fromUser) {
     const nameA = $('aName').value.trim() || 'Первый', nameB = $('cName').value.trim() || 'Второй';
     const da = $('aDate').value, db = $('cDate').value;
-    if (!da || !db) { ($('aDate').value ? $('cDate') : $('aDate')).focus(); return; }
+    if (!validDate($('aDate')) || !validDate($('cDate'))) return;
     const noon = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 9, 0)); };
     PR.a = { pos: positions(noon(da)) }; PR.b = { pos: positions(noon(db)) };
     PR.cross = [];
