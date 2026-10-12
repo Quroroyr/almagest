@@ -135,6 +135,7 @@ void main() {
   float vy = mix(-1.55, -.62, smoothstep(.55, 1., sp));
   vec2 vuv = plateUV(q, a, 1.833, a + mix(0., .9, portrait), .5, vy, vec2(0.));
   vec4 val = plate(u_valley, vuv);
+  val.a *= smoothstep(0., .14, vuv.y); // нижний край снимка уходит в темноту, а не обрывается
   vec3 vc = val.rgb * vec3(.78, .84, .95) * .85;
   vc = mix(vc, vec3(.1, .13, .18), .25);
   col = mix(col, vc, val.a * u_valleyOk);
@@ -143,7 +144,7 @@ void main() {
   col = mix(col, vec3(.32, .38, .46), low * .45);
 
   // верхний край вида сливается с первым экраном
-  float edge = smoothstep(0., 120. * u_px, u_res.y - p.y);
+  float edge = smoothstep(0., 120. * u_px, u_res.y - p.y) * smoothstep(0., 90. * u_px, p.y); // и нижний — со следующей секцией
   col = mix(vec3(.016, .027, .05), col, edge);
   o = vec4(dither(col, p), 1.);
 }

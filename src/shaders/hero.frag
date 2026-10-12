@@ -125,7 +125,7 @@ void main() {
   col = mix(col, cc2, c2 * .82 * landA);
 
   // дальние горы — фото-слой; на них ложится холодная дымка
-  vec2 farUV = plateUV(q, a, 1.833, mix(1., 1.35, portrait) * a + mix(0., .6, portrait), .52, mix(-.82, -.75, portrait), m * vec2(.008, .003));
+  vec2 farUV = plateUV(q, a, 1.833, mix(1., 1.35, portrait) * a + mix(0., .6, portrait), .52, mix(-.64, -.6, portrait), m * vec2(.008, .003));
   vec4 far = plate(u_far, farUV);
   vec3 farC = far.rgb * vec3(.78, .84, .95) * .82;
   float hz = smoothstep(.2, -.25, q.y);

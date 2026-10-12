@@ -229,8 +229,15 @@
     HU.ncs = ni; HU.ncl = nl;
   }
   layoutHeroStars();
+  // фото-слои: на высоком качестве — 2560 px, иначе 1408 (телефон, слабый компьютер)
+  // (пути записаны целиком, чтобы сборка проставила им метку версии)
+  const PLATES = {
+    'hero-far': ['assets/hero-far.webp', 'assets/hero-far-s.webp'], 'hero-near': ['assets/hero-near.webp', 'assets/hero-near-s.webp'],
+    'intro-valley': ['assets/intro-valley.webp', 'assets/intro-valley-s.webp'], 'method-room': ['assets/method-room.webp', 'assets/method-room-s.webp'],
+  };
+  const plateUrl = n => PLATES[n][Stage.tier === 'high' ? 0 : 1];
   const heroView = Stage.view(hero, 'hero', {
-    textures: { u_far: 'assets/hero-far.webp', u_near: 'assets/hero-near.webp' },
+    textures: { u_far: plateUrl('hero-far'), u_near: plateUrl('hero-near') },
     uniforms: (gl, L, v, now, dt) => {
       HU.hover += (HU.hoverTo - HU.hover) * (1 - Math.exp(-dt * 6));
       gl.uniform3fv(L('u_cs'), HU.cs); gl.uniform1i(L('u_ncs'), HU.ncs);
@@ -312,7 +319,7 @@
     b.addEventListener('focus', on); b.addEventListener('blur', off);
   }
   Stage.view(uniStage, 'intro', {
-    progEl: uni, textures: { u_valley: 'assets/intro-valley.webp' },
+    progEl: uni, textures: { u_valley: plateUrl('intro-valley') },
     uniforms: (gl, L) => { gl.uniform1f(L('u_sp'), UNI.sp); gl.uniform1i(L('u_hl'), UNI.hl); },
   });
   Stage.onFrame(() => {
@@ -1338,7 +1345,11 @@
   Stage.view($('pair'), 'quiet', { uniforms: (gl, L) => { gl.uniform1f(L('u_variant'), 2); gl.uniform1f(L('u_dim'), 0); } });
 
   // ——— 07 как мы считаем ———
-  Stage.view($('method'), 'method', { textures: { u_room: 'assets/method-room.webp' } });
+  Stage.view($('method'), 'method', {
+    textures: { u_room: plateUrl('method-room') },
+    // высота экрана в долях секции: снимок кабинета подгоняется под экран, а не под всю длинную секцию
+    uniforms: (gl, L) => gl.uniform1f(L('u_vh'), Math.min(1, window.innerHeight / Math.max(1, $('method').offsetHeight))),
+  });
 
   // ——— 08 консультации ———
   const offers = $('offers');
