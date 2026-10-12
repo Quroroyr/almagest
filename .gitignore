@@ -3,3 +3,7 @@ dist/
 PRODUCT.md
 DESIGN.md
 node_modules/
+assets-src/
+refs/
+concept/
+tools/
