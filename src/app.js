@@ -325,130 +325,419 @@
     return false;
   });
 
-  // ——— 03 небо сегодня ———
-  const NOW = { date: new Date(), live: true, spin: !REDUCED, yaw: 0.6, hl: -1, pin: -1, pos: null };
+  // ——— 03 небо сегодня: геоцентрическая сцена (шейдер src/shaders/sky.frag) ———
+  // Земля в центре, вокруг в плоскости эклиптики — условные орбиты; угол тела на орбите — его настоящая
+  // эклиптическая долгота. Земля повёрнута по звёздному времени и освещена Солнцем с его направления.
   const EPS = 23.4392 * RAD;
   const eclToEq = (lon, lat) => {
     const l = lon * RAD, b = (lat || 0) * RAD;
     const x = Math.cos(b) * Math.cos(l), y = Math.cos(b) * Math.sin(l), z = Math.sin(b);
     return [x, y * Math.cos(EPS) - z * Math.sin(EPS), y * Math.sin(EPS) + z * Math.cos(EPS)];
   };
-  // линии зодиакальных созвездий на небесной сфере (экваториальные координаты)
-  const SEG = [];
+  const m3 = (a, b) => { const r = []; for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r.push(a[i * 3] * b[j] + a[i * 3 + 1] * b[3 + j] + a[i * 3 + 2] * b[6 + j]); return r; };
+  const mv = (m, v) => [m[0] * v[0] + m[1] * v[1] + m[2] * v[2], m[3] * v[0] + m[4] * v[1] + m[5] * v[2], m[6] * v[0] + m[7] * v[1] + m[8] * v[2]];
+  const Rx = a => [1, 0, 0, 0, Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a)];
+  const Rz = a => [Math.cos(a), -Math.sin(a), 0, Math.sin(a), Math.cos(a), 0, 0, 0, 1];
+
+  const skySec = $('now'), skyViz = $('skyViz'), skyTip = $('skyTip');
+  const SQ = 0.44, INC = Math.acos(SQ), ROLL = 0.3, SUN_PHI = -26 * RAD; // наклон плоскости орбит и место Солнца на экране
+  // кольца по «геоцентрическому» порядку; размеры тел — в долях радиуса Земли (не в масштабе)
+  const RING = ['moon', 'mercury', 'venus', 'sun', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
+  const BODY_R = { sun: .1, moon: .15, mercury: .075, venus: .1, mars: .095, jupiter: .18, saturn: .14, uranus: .12, neptune: .12, pluto: .06 };
+  const CITY_FULL = { 'Москва': 'Москва, Россия', 'Санкт-Петербург': 'Санкт-Петербург, Россия', 'Минск': 'Минск, Беларусь', 'Алматы': 'Алматы, Казахстан', 'Ташкент': 'Ташкент, Узбекистан', 'Ереван': 'Ереван, Армения', 'Тбилиси': 'Тбилиси, Грузия' };
+  const SKY = { target: Date.now(), disp: Date.now(), live: true, play: false, hl: -1, hlA: 0, pin: -1, hover: -1, cityIdx: 0, pos: null, lastMin: '', dayKey: '', S: 1, lay: null, bodies: [], segDirty: true, labDirty: true };
+  const cityOf = () => { const [name, lat, lon, tz] = CITIES[SKY.cityIdx]; return { name, lat, lon, tz }; };
+
+  // зодиакальные созвездия: звёзды в эклиптических координатах, фигура относительно центра
+  const ZOD = [];
   for (const [ck, c] of Object.entries(window.CONSTELLATIONS)) {
     if (c.minor) continue;
-    const map = {};
-    for (const [k, h, m, dec] of c.stars) { const ra = (h + m / 60) * 15 * RAD, d = dec * RAD; map[k] = [Math.cos(d) * Math.cos(ra), Math.cos(d) * Math.sin(ra), Math.sin(d)]; }
-    for (const [a, b] of c.lines) if (map[a] && map[b]) SEG.push(map[a], map[b]);
+    const pts = {}, list = [];
+    for (const [k, h, m, dec] of c.stars) { const e = window.Sky.eclipticFromEquatorial((h + m / 60) * 15, dec); pts[k] = { lon: norm(e.lon + 0.36), lat: e.lat }; list.push(pts[k]); }
+    const ref = list[0].lon;
+    const lonC = norm(ref + list.reduce((a, p) => a + angDiff(p.lon, ref), 0) / list.length);
+    const latC = list.reduce((a, p) => a + p.lat, 0) / list.length;
+    ZOD.push({ name: c.name, lonC, latC, pts, lines: c.lines.filter(([a, b]) => pts[a] && pts[b]) });
   }
-  const plArr = new Float32Array(30);
-  const GLOBE = { gmst: 0, city: [55.76 * RAD, 37.62 * RAD] };
-  const globeEl = $('globe'), globeLabel = $('globeLabel');
-  const dayTime = $('dayTime');
-  function camBasis() {
-    const ph = 0.38, ps = NOW.yaw, D = 4.2;
-    const c = [D * Math.cos(ph) * Math.cos(ps), D * Math.cos(ph) * Math.sin(ps), D * Math.sin(ph)];
-    const f = c.map(x => -x / D);
-    let r = [f[1] * 1 - f[2] * 0, f[2] * 0 - f[0] * 1, 0]; // f × (0,0,1)
-    const rl = Math.hypot(...r); r = r.map(x => x / rl);
-    const u = [r[1] * f[2] - r[2] * f[1], r[2] * f[0] - r[0] * f[2], r[0] * f[1] - r[1] * f[0]];
-    return { c, f, r, u, fl: 2.55 };
-  }
-  function setNow(d) {
-    NOW.date = d;
-    const pos = positions(d); NOW.pos = pos;
-    UNI_ORDER.forEach((k, i) => plArr.set(eclToEq(pos[k].lon, pos[k].lat || 0), i * 3));
-    GLOBE.gmst = angles(d, 0, 0).ramc * RAD;
-    $('whenDate').textContent = fmtDate(d, { day: 'numeric', month: 'long', year: 'numeric' });
-    $('whenTime').textContent = (NOW.live ? 'сейчас, ' : '') + d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }) + ' по твоему времени';
-    $('ephCaption').textContent = NOW.live ? 'Положения на эту минуту. Страница пересчитывает их сама.' : 'Положения на выбранное время сегодня. Кнопка «Сейчас» вернёт текущую минуту.';
-    $('ephBody').innerHTML = UNI_ORDER.map((k, i) => {
-      const p = pos[k], sg = signOf(p.lon);
-      const mv = k === 'sun' || k === 'moon' ? (k === 'moon' ? `${Math.abs(p.speed).toFixed(1).replace('.', ',')}° в сутки` : '') : p.retro ? 'ретроградное' : 'прямое';
-      return `<tr data-i="${i}" style="--i:${i}" class="${NOW.hl === i ? 'on' : ''}"><td class="g sym" aria-hidden="true">${PL[k].glyph}</td><th scope="row">${PL[k].name}</th><td><span class="sym sg" aria-hidden="true">${sg.glyph}</span>${sg.name}</td><td class="num">${fmtPos(p.lon)}${p.retro ? '<span class="rx" title="ретроградное">℞</span>' : ''}</td><td class="${p.retro ? 'r' : ''}">${mv}</td></tr>`;
-    }).join('');
-    for (const tr of $('ephBody').querySelectorAll('tr')) {
-      const i = +tr.dataset.i;
-      tr.addEventListener('pointerenter', () => setHl(i));
-      tr.addEventListener('pointerleave', () => setHl(NOW.pin));
-      tr.addEventListener('click', () => { NOW.pin = NOW.pin === i ? -1 : i; setHl(NOW.pin); });
-    }
-    const ph = moonPhase(d), ms = signOf(pos.moon.lon);
-    $('moonLine').textContent = `${phaseName(ph.elong)}, освещено ${Math.round(ph.illum * 100)}%, Луна ${ms.loc}. Полнолуние — ${fmtDate(nextPhase(d, 180))}, новолуние — ${fmtDate(nextPhase(d, 0))}.`;
-    const notes = [];
-    for (const k of ['mercury', 'venus', 'mars']) if (pos[k].retro) {
-      const st = nextStation(d, k, 120);
-      notes.push(`<div class="notice"><b>${PL[k].name} ретроградный</b>${st ? `Попятное движение закончится ${fmtDate(st)}. ` : ''}В астрологии это время пересматривать, а не начинать.</div>`);
-    }
-    $('notices').innerHTML = notes.join('');
-    if (NOW.live) {
-      const nowD = new Date(); dayTime.value = String(nowD.getHours() * 60 + nowD.getMinutes());
-      drawMoonDisc($('moonSmall'), ph.elong);
-      $('moonSmallTitle').textContent = phaseName(ph.elong);
-      $('moonSmallText').textContent = ` · освещено ${Math.round(ph.illum * 100)}%, ${ms.loc}`;
-    }
-    Stage.invalidate();
-  }
-  function setHl(i) {
-    NOW.hl = i;
-    for (const tr of $('ephBody').querySelectorAll('tr')) tr.classList.toggle('on', +tr.dataset.i === i);
-    Stage.invalidate();
-  }
-  dayTime.addEventListener('input', () => {
-    NOW.live = false;
-    const d = new Date(); d.setHours(0, 0, 0, 0); d.setMinutes(+dayTime.value);
-    setNow(d);
-  });
-  $('nowBtn').addEventListener('click', () => { NOW.live = true; setNow(new Date()); });
-  const spinBtn = $('spinBtn');
-  function setSpin(on) {
-    NOW.spin = on;
-    spinBtn.setAttribute('aria-pressed', on ? 'false' : 'true');
-    spinBtn.setAttribute('aria-label', on ? 'Остановить вращение сферы' : 'Запустить вращение сферы');
-    spinBtn.innerHTML = on ? '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4 2v10M10 2v10" stroke="currentColor" stroke-width="1.4"/></svg>' : '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4 2l8 5-8 5z" fill="currentColor"/></svg>';
-    Stage.invalidate();
-  }
-  spinBtn.addEventListener('click', () => setSpin(!NOW.spin));
-  setSpin(NOW.spin);
-  { const sp = positions(new Date()).sun, v = eclToEq(sp.lon, 0); NOW.yaw = Math.atan2(v[1], v[0]) + 0.9; }
-  Stage.view($('now'), 'quiet', { uniforms: (gl, L) => { gl.uniform1f(L('u_variant'), 0); gl.uniform1f(L('u_dim'), 0); } });
-  const globeView = Stage.view(globeEl, 'globe', {
-    blend: true,
-    uniforms: (gl, L, v, now, dt) => {
-      if (NOW.spin && !REDUCED) NOW.yaw += dt * 0.07;
-      const b = camBasis();
-      if (!GLOBE.tex) {
-        GLOBE.tex = gl.createTexture();
-        gl.bindTexture(gl.TEXTURE_2D, GLOBE.tex);
-        const data = new Float32Array(SEG.length * 4); SEG.forEach((v, i) => data.set([v[0], v[1], v[2], 0], i * 4));
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, SEG.length, 1, 0, gl.RGBA, gl.FLOAT, data);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
+  // подписи — своя текстура, чтобы текст рисовался в той же сцене и не отставал при прокрутке
+  const LABELS = [...UNI_ORDER.map(k => ({ text: PL[k].name, kind: 'body' })), ...ZOD.map(z => ({ text: z.name.toUpperCase(), kind: 'con' })), { text: '', kind: 'city' }];
+  const labCv = document.createElement('canvas');
+  function buildLabels(S) {
+    const g = labCv.getContext('2d');
+    const rowH = Math.ceil(30 * S);
+    labCv.width = 1024; labCv.height = rowH * LABELS.length;
+    g.clearRect(0, 0, labCv.width, labCv.height);
+    g.fillStyle = '#fff'; g.textBaseline = 'middle';
+    LABELS[LABELS.length - 1].text = cityOf().name;
+    LABELS.forEach((l, i) => {
+      const y = i * rowH + rowH / 2;
+      if (l.kind === 'con') {
+        g.font = `500 ${(window.innerWidth < 760 ? 9 : 11) * S}px ${F.display}`;
+        let x = 4 * S; for (const ch of l.text) { g.fillText(ch, x, y); x += g.measureText(ch).width + 2.6 * S; }
+        l.w = x + 2 * S;
+      } else {
+        const small = window.innerWidth < 760;
+        g.font = `italic 500 ${(l.kind === 'city' ? 12 : small ? 12.5 : 15) * S}px ${F.display}`;
+        g.fillText(l.text, 4 * S, y); l.w = g.measureText(l.text).width + 8 * S;
       }
-      gl.activeTexture(gl.TEXTURE5); gl.bindTexture(gl.TEXTURE_2D, GLOBE.tex); gl.uniform1i(L('u_segTex'), 5);
-      gl.uniform1i(L('u_nseg'), Math.min(128, SEG.length / 2));
-      gl.uniform3fv(L('u_pl'), plArr); gl.uniform1i(L('u_hl'), NOW.hl);
-      gl.uniform1f(L('u_gmst'), GLOBE.gmst); gl.uniform2f(L('u_city'), GLOBE.city[0], GLOBE.city[1]);
-      gl.uniform3f(L('u_cam'), ...b.c); gl.uniform3f(L('u_cf'), ...b.f); gl.uniform3f(L('u_cr'), ...b.r); gl.uniform3f(L('u_cu'), ...b.u); gl.uniform1f(L('u_fl'), b.fl);
-      placeGlobeLabel(b, v.rect);
+      l.h = rowH; l.v0 = i * rowH / labCv.height; l.v1 = (i + 1) * rowH / labCv.height; l.u1 = Math.min(1, l.w / labCv.width);
+    });
+    SKY.labDirty = true;
+  }
+
+  // экранная раскладка сцены: всё в px холста (начало — левый нижний угол секции)
+  function skyLayout(sr, S) {
+    const vr = skyViz.getBoundingClientRect();
+    const vx = (vr.left - sr.left) * S, vy = (sr.bottom - vr.bottom) * S, vw = vr.width * S, vh = vr.height * S;
+    const portrait = window.innerWidth <= 960 || vw < vh * 1.05; // на телефоне сцена над таблицей — компактная раскладка
+    const er = Math.min(vh * (portrait ? .25 : .27), vw * (portrait ? .2 : .19));
+    return { S, er, ec: [vx + vw * .5, vy + vh * (portrait ? .5 : .5)], vx, vy, vw, vh, portrait };
+  }
+  // матрица мир → экваториальные (столбцами для GLSL) и точки тел
+  function skyFrame(d) {
+    const pos = positions(d); SKY.pos = pos;
+    const lay = SKY.lay, S = lay.S, er = lay.er;
+    const lam0 = pos.sun.lon * RAD - SUN_PHI;
+    const A = m3(m3(m3(Rz(ROLL), Rx(-INC)), Rz(-lam0)), Rx(-EPS));
+    SKY.A = A;
+    // радиусы колец: Луна ближе, у Солнца отдельный зазор, чтобы новая Луна не «закрывала» его на схеме
+    const RR = { moon: 1.34, mercury: 1.5, venus: 1.64, sun: 1.86, mars: 2.02, jupiter: 2.16, saturn: 2.3, uranus: 2.44, neptune: 2.58, pluto: 2.72 };
+    const ringR = k => er * RR[k] * (lay.portrait ? .9 : 1);
+    const place = (lon, r) => {
+      const ph = lon * RAD - lam0;
+      const x = Math.cos(ph) * r, y = Math.sin(ph) * r * SQ, z = -Math.sin(ph) * r * Math.sin(INC);
+      const c = Math.cos(ROLL), s = Math.sin(ROLL);
+      return { x: lay.ec[0] + x * c - y * s, y: lay.ec[1] + x * s + y * c, z, ph, w: [x * c - y * s, x * s + y * c, z] };
+    };
+    const sunP = place(pos.sun.lon, ringR('sun'));
+    const sunW = sunP.w.map(v => v / Math.hypot(...sunP.w));
+    SKY.sunW = sunW;
+    SKY.bodies = UNI_ORDER.map(k => {
+      const P = place(pos[k].lon, ringR(k));
+      let toSun = k === 'sun' ? [0, 0, 1] : (() => { const v = [sunP.w[0] - P.w[0], sunP.w[1] - P.w[1], sunP.w[2] - P.w[2]]; const l = Math.hypot(...v); return v.map(x => x / l); })();
+      // внешние планеты с Земли всегда видны почти полными — свет на них сильнее спереди
+      // Луна — с настоящей фазой: освещённая доля по элонгации, светлый край смотрит на Солнце на экране
+      if (k === 'moon') { const e = moonPhase(d).elong * RAD, dx = sunP.x - P.x, dy = sunP.y - P.y, dl = Math.hypot(dx, dy) || 1; toSun = [dx / dl * Math.sin(e), dy / dl * Math.sin(e), -Math.cos(e)]; }
+      if (['mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'].includes(k)) { const z = Math.max(toSun[2], 0.6), l = Math.hypot(toSun[0], toSun[1], z); toSun = [toSun[0] / l, toSun[1] / l, z / l]; }
+      return { k, x: P.x, y: P.y, z: P.z, r: er * BODY_R[k], ring: ringR(k), ph: P.ph, light: toSun };
+    });
+    // город на Земле → мир
+    const city = cityOf(), gm = angles(d, 0, 0).ramc * RAD;
+    SKY.gmst = gm;
+    const ra = gm + city.lon * RAD, la = city.lat * RAD;
+    SKY.cityW = mv(A, [Math.cos(la) * Math.cos(ra), Math.cos(la) * Math.sin(ra), Math.sin(la)]);
+    // созвездия на внешнем кольце, каждое на своей долготе
+    const lamKey = Math.round(lam0 / RAD * 4) + ':' + Math.round(er);
+    if (lamKey !== SKY.segKey) {
+      SKY.segKey = lamKey;
+      const segs = [], boxes = [], ranges = [], conLab = [];
+      const pxDeg = er * .034;
+      for (const z of ZOD) {
+        const P = place(z.lonC, er * 3.05 * (lay.portrait ? .82 : 1));
+        const cy = P.y + (z.latC * pxDeg) * .5;
+        const at = p => [P.x - angDiff(p.lon, z.lonC) * pxDeg, cy + (p.lat - z.latC) * pxDeg];
+        const i0 = segs.length / 4;
+        let bx0 = 1e9, by0 = 1e9, bx1 = -1e9, by1 = -1e9;
+        for (const [a, b] of z.lines) {
+          const A1 = at(z.pts[a]), B1 = at(z.pts[b]);
+          segs.push(A1[0], A1[1], B1[0], B1[1]);
+          bx0 = Math.min(bx0, A1[0], B1[0]); by0 = Math.min(by0, A1[1], B1[1]); bx1 = Math.max(bx1, A1[0], B1[0]); by1 = Math.max(by1, A1[1], B1[1]);
+        }
+        const pad = 6 * S;
+        boxes.push(bx0 - pad, by0 - pad, bx1 + pad, by1 + pad); ranges.push(i0, segs.length / 4);
+        conLab.push({ x: (bx0 + bx1) / 2, y: by0 - 14 * S });
+      }
+      SKY.segs = new Float32Array(segs); SKY.boxes = new Float32Array(boxes); SKY.ranges = new Float32Array(ranges); SKY.conLab = conLab;
+      SKY.segDirty = true;
+    }
+  }
+
+  // таблица: строится один раз, дальше меняются только значения
+  const ephBody = $('ephBody');
+  ephBody.innerHTML = UNI_ORDER.map((k, i) => `<tr data-i="${i}" style="--i:${i}"><td class="g sym" aria-hidden="true">${PL[k].glyph}</td><th scope="row">${PL[k].name}</th><td class="sg-c"></td><td class="num pos-c"></td><td class="mv-c"></td></tr>`).join('');
+  const rows = [...ephBody.querySelectorAll('tr')];
+  rows.forEach((tr, i) => {
+    tr.addEventListener('pointerenter', () => { SKY.hover = i; });
+    tr.addEventListener('pointerleave', () => { SKY.hover = -1; });
+    tr.addEventListener('click', () => pinBody(SKY.pin === i ? -1 : i));
+  });
+  function fillTable(pos) {
+    rows.forEach((tr, i) => {
+      const k = UNI_ORDER[i], p = pos[k], sg = signOf(p.lon);
+      const c = tr.children;
+      c[2].innerHTML = `<span class="sym sg" aria-hidden="true">${sg.glyph}</span>${sg.name}`;
+      c[3].innerHTML = `${fmtPos(p.lon)}${p.retro ? '<span class="rx" title="ретроградное">℞</span>' : ''}`;
+      const mvTxt = k === 'moon' ? `${Math.abs(p.speed).toFixed(1).replace('.', ',')}° в сутки` : k === 'sun' ? 'прямое' : p.retro ? 'ретроградное' : 'прямое';
+      c[4].textContent = mvTxt; c[4].className = 'mv-c' + (p.retro ? ' r' : '');
+    });
+  }
+  function fillMoon(d, pos) {
+    const ph = moonPhase(d), sg = signOf(pos.moon.lon);
+    $('moonTitle').textContent = `Луна ${sg.loc}`;
+    $('moonText').textContent = FRAME.moon(FACETS[sg.key]);
+    $('moonLine').textContent = `${phaseName(ph.elong)}, освещено ${Math.round(ph.illum * 100)}%. Полнолуние — ${fmtDate(nextPhase(d, 180))}, новолуние — ${fmtDate(nextPhase(d, 0))}.`;
+    drawMoonReal($('moonCard'), ph.elong);
+    const notes = [];
+    for (const k of ['mercury', 'venus', 'mars']) if (pos[k].retro) { const st = nextStation(d, k, 120); notes.push(`${PL[k].name} ${k === 'venus' ? 'ретроградна' : 'ретрограден'}${st ? ` до ${fmtDate(st)}` : ''}`); }
+    $('notices').textContent = notes.length ? notes.join(' · ') + '.' : '';
+  }
+  const localOf = (ms, tz) => new Date(ms + tz * 3600e3);
+  const hhmm = (ms, tz) => { const l = localOf(ms, tz); return `${String(l.getUTCHours()).padStart(2, '0')}:${String(l.getUTCMinutes()).padStart(2, '0')}`; };
+  function fillWhen(ms) {
+    const city = cityOf(), l = localOf(ms, city.tz);
+    $('whenDate').textContent = fmtDate(l, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' });
+    $('whenTime').textContent = (SKY.live ? 'сейчас, ' : SKY.play ? 'ход времени, ' : '') + hhmm(ms, city.tz) + ' по местному времени';
+    $('ephCaption').textContent = SKY.live ? 'Положения на эту минуту — страница пересчитывает их сама.' : 'Положения на выбранное время. «Сейчас» вернёт текущую минуту.';
+  }
+
+  // шкала суток: светлая полоса — когда Солнце над горизонтом города, значки — моменты наибольшей высоты Солнца и Луны
+  const tl = $('tl'), tlKnob = $('tlKnob'), tlLabel = $('tlLabel');
+  tl.querySelector('.tl-ticks').innerHTML = Array.from({ length: 25 }, (_, h) => `<i style="left:${h / 24 * 100}%" class="${h % 6 ? '' : 'big'}">${h % 6 ? '' : `<b>${String(h).padStart(2, '0')}:00</b>`}</i>`).join('');
+  const dayStart = (ms, tz) => Math.floor((ms + tz * 3600e3) / 86400e3) * 86400e3 - tz * 3600e3;
+  function altOf(d, lonEcl, latEcl, lat, lon) {
+    const v = eclToEq(lonEcl, latEcl), ra = Math.atan2(v[1], v[0]), dec = Math.asin(v[2]);
+    const H = angles(d, lat, lon).ramc * RAD - ra, la = lat * RAD;
+    return Math.asin(Math.sin(la) * Math.sin(dec) + Math.cos(la) * Math.cos(dec) * Math.cos(H)) / RAD;
+  }
+  function buildDay(ms) {
+    const city = cityOf(), d0 = dayStart(ms, city.tz), key = d0 + ':' + SKY.cityIdx;
+    if (key === SKY.dayKey) return; SKY.dayKey = key; SKY.d0 = d0;
+    const stops = []; let sunMax = -99, sunT = 0, moonMax = -99, moonT = 0;
+    for (let i = 0; i <= 96; i++) {
+      const t = d0 + i * 900e3, dd = new Date(t), pp = positions(dd);
+      const as = altOf(dd, pp.sun.lon, 0, city.lat, city.lon), am = altOf(dd, pp.moon.lon, pp.moon.lat || 0, city.lat, city.lon);
+      if (as > sunMax) { sunMax = as; sunT = i / 96; } if (am > moonMax) { moonMax = am; moonT = i / 96; }
+      const day = Math.min(1, Math.max(0, as / 18)), dusk = as > -8 && as < 2 ? 1 - Math.abs(as + 3) / 6 : 0;
+      // днём — светлая сталь, у полудня чуть теплее, в сумерках — приглушённый тёплый отблеск
+      const warm = day * day * .45, a = 0.18 + 0.72 * day + 0.2 * Math.max(0, dusk);
+      const r = 80 + 150 * day + 30 * warm + 90 * Math.max(0, dusk), g2 = 95 + 140 * day + 5 * warm + 40 * Math.max(0, dusk), b = 125 + 125 * day - 70 * warm - 20 * Math.max(0, dusk);
+      stops.push(`rgba(${r | 0}, ${g2 | 0}, ${b | 0}, ${a.toFixed(2)}) ${(i / 96 * 100).toFixed(2)}%`);
+    }
+    $('tlBand').style.background = `linear-gradient(90deg, ${stops.join(', ')})`;
+    $('tlSun').style.left = (sunT * 100) + '%'; $('tlSun').title = `Солнце выше всего в ${hhmm(d0 + sunT * 86400e3, city.tz)}`;
+    $('tlMoon').style.left = (moonT * 100) + '%'; $('tlMoon').title = `Луна выше всего в ${hhmm(d0 + moonT * 86400e3, city.tz)}`;
+  }
+  function placeKnob(ms) {
+    const city = cityOf(), f = Math.min(1, Math.max(0, (ms - dayStart(ms, city.tz)) / 86400e3));
+    tlKnob.style.left = (f * 100) + '%';
+    const txt = hhmm(ms, city.tz);
+    tlLabel.textContent = txt; tlKnob.setAttribute('aria-valuenow', Math.round(f * 1439)); tlKnob.setAttribute('aria-valuetext', txt);
+  }
+  function setTarget(ms, fromUser) {
+    SKY.target = ms;
+    if (fromUser) { SKY.live = false; setPlay(false); }
+    Stage.invalidate();
+  }
+  function timeFromX(clientX) {
+    const r = tl.getBoundingClientRect(), f = Math.min(1, Math.max(0, (clientX - r.left) / r.width));
+    return (SKY.d0 || dayStart(SKY.target, cityOf().tz)) + f * 86400e3;
+  }
+  let dragging = false;
+  tl.addEventListener('pointerdown', e => { dragging = true; tl.setPointerCapture(e.pointerId); setTarget(timeFromX(e.clientX), true); tlKnob.focus({ preventScroll: true }); });
+  tl.addEventListener('pointermove', e => { if (dragging) setTarget(timeFromX(e.clientX), true); });
+  tl.addEventListener('pointerup', () => { dragging = false; });
+  tl.addEventListener('pointercancel', () => { dragging = false; });
+  tlKnob.addEventListener('keydown', e => {
+    const step = (e.shiftKey ? 60 : 5) * 60e3;
+    const keys = { ArrowRight: step, ArrowUp: step, ArrowLeft: -step, ArrowDown: -step };
+    if (keys[e.key] !== undefined) { setTarget(SKY.target + keys[e.key], true); e.preventDefault(); }
+    if (e.key === 'Home') { setTarget(SKY.d0, true); e.preventDefault(); }
+    if (e.key === 'End') { setTarget(SKY.d0 + 86399e3, true); e.preventDefault(); }
+  });
+  const playBtn = $('skyPlay');
+  function setPlay(on) {
+    SKY.play = on;
+    playBtn.setAttribute('aria-pressed', String(on));
+    playBtn.setAttribute('aria-label', on ? 'Остановить ход времени' : 'Запустить ход времени: сутки за полторы минуты');
+    playBtn.innerHTML = on ? '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4 2v10M10 2v10" stroke="currentColor" stroke-width="1.5"/></svg>' : '<svg viewBox="0 0 14 14" aria-hidden="true"><path d="M4.5 2.2l7 4.8-7 4.8z" fill="currentColor"/></svg>';
+    if (on) SKY.live = false;
+    Stage.invalidate();
+  }
+  playBtn.addEventListener('click', () => setPlay(!SKY.play));
+  $('nowBtn').addEventListener('click', () => { SKY.live = true; setPlay(false); SKY.target = Date.now(); Stage.invalidate(); });
+  setPlay(false);
+
+  // город: от него зависят местное время, светлая часть суток и точка на Земле
+  const skyCity = $('skyCity');
+  CITIES.forEach(([n], i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = CITY_FULL[n] || n; skyCity.appendChild(o); });
+  function setSkyCity(i) {
+    SKY.cityIdx = i; skyCity.value = String(i);
+    const c = cityOf();
+    $('whenCoords').textContent = `${Math.abs(c.lat).toFixed(4).replace('.', ',')}° ${c.lat >= 0 ? 'с. ш.' : 'ю. ш.'}  ${Math.abs(c.lon).toFixed(4).replace('.', ',')}° ${c.lon >= 0 ? 'в. д.' : 'з. д.'}`;
+    SKY.dayKey = ''; SKY.lastMin = ''; buildLabels(SKY.S); Stage.invalidate();
+  }
+  skyCity.addEventListener('change', () => setSkyCity(+skyCity.value));
+
+  // выбор тела: наведение на строку или на само тело в сцене; клик закрепляет и показывает подпись
+  function pinBody(i) {
+    SKY.pin = i;
+    rows.forEach((tr, j) => tr.classList.toggle('pin', j === i));
+    if (i < 0) skyTip.classList.remove('on');
+    Stage.invalidate();
+  }
+  function bodyAt(clientX, clientY) {
+    const sr = skySec.getBoundingClientRect(), S = SKY.S;
+    let best = -1, bd = 1e9;
+    SKY.bodies.forEach((b, i) => {
+      const x = sr.left + b.x / S, y = sr.bottom - b.y / S;
+      const behind = b.z < 0 && Math.hypot(b.x - SKY.lay.ec[0], b.y - SKY.lay.ec[1]) < SKY.lay.er;
+      const d = Math.hypot(clientX - x, clientY - y);
+      if (!behind && d < b.r / S + 10 && d < bd) { bd = d; best = i; }
+    });
+    return best;
+  }
+  skySec.addEventListener('pointermove', e => {
+    if (e.target.closest('.sky-left, .sky-when, .sky-time, .sky-tip')) return;
+    const i = bodyAt(e.clientX, e.clientY);
+    SKY.hover = i; skySec.style.cursor = i >= 0 ? 'pointer' : '';
+  });
+  skySec.addEventListener('pointerleave', () => { SKY.hover = -1; });
+  skySec.addEventListener('click', e => {
+    if (e.target.closest('.sky-left, .sky-when, .sky-time, .sky-tip')) return;
+    const i = bodyAt(e.clientX, e.clientY);
+    pinBody(i === SKY.pin ? -1 : i);
+  });
+  function placeTip() {
+    const i = SKY.pin; if (i < 0 || !SKY.pos) return;
+    const b = SKY.bodies[i], k = UNI_ORDER[i], p = SKY.pos[k], S = SKY.S, sr = skySec.getBoundingClientRect();
+    const html = `<b><span class="sym">${PL[k].glyph}</span> ${PL[k].name}</b><span>${fmtPos(p.lon)} ${signOf(p.lon).gen}</span><span>${k === 'moon' ? `${phaseName(moonPhase(new Date(SKY.disp)).elong).toLowerCase()}` : k === 'sun' ? 'видимое движение — прямое' : p.retro ? 'ретроградное движение' : 'прямое движение'}</span>`;
+    if (skyTip.dataset.k !== k + SKY.lastMin) { skyTip.innerHTML = html; skyTip.dataset.k = k + SKY.lastMin; }
+    skyTip.style.left = (b.x / S + b.r / S + 14) + 'px'; skyTip.style.top = (sr.height - b.y / S) + 'px';
+    skyTip.classList.add('on');
+  }
+
+  // текстуры подписей и созвездий — свои, в отдельных слотах (движок занимает 0…3)
+  const SKY_GL = { lab: null, seg: null };
+  function upload(gl) {
+    if (!SKY_GL.lab) SKY_GL.lab = gl.createTexture();
+    if (SKY.labDirty) {
+      gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SKY_GL.lab);
+      gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, labCv);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+      SKY.labDirty = false;
+    }
+    if (!SKY_GL.seg) SKY_GL.seg = gl.createTexture();
+    if (SKY.segDirty && SKY.segs) {
+      gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, SKY_GL.seg);
+      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA32F, SKY.segs.length / 4, 1, 0, gl.RGBA, gl.FLOAT, SKY.segs);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+      SKY.segDirty = false;
+    }
+    gl.activeTexture(gl.TEXTURE6); gl.bindTexture(gl.TEXTURE_2D, SKY_GL.lab);
+    gl.activeTexture(gl.TEXTURE7); gl.bindTexture(gl.TEXTURE_2D, SKY_GL.seg);
+  }
+
+  // кадр сцены: время плавно догоняет цель, всё пересчитывается из настоящих положений
+  const big = Stage.tier === 'high';
+  const lb = new Float32Array(96), luv = new Float32Array(96), lc = new Float32Array(96);
+  const bp = new Float32Array(40), bl = new Float32Array(30), bo = new Float32Array(20);
+  let lastFill = 0;
+  Stage.view(skySec, 'sky', {
+    textures: { u_mw: `assets/sky/milkyway-${big ? '4k' : '2k'}.webp`, u_day: `assets/sky/earth-day-${big ? '4k' : '2k'}.webp`, u_aux: `assets/sky/earth-aux-${big ? '4k' : '2k'}.webp`, u_atlas: 'assets/sky/planets.webp' },
+    uniforms: (gl, L, v, now, dt) => {
+      const S = gl.drawingBufferWidth / gl.canvas.clientWidth;
+      if (Math.abs(S - SKY.S) > 0.01 || !labCv.width) { SKY.S = S; buildLabels(S); }
+      if (SKY.live) SKY.target = Date.now();
+      else if (SKY.play && !REDUCED) SKY.target += dt * 1000 * 1000; // сутки ≈ за полторы минуты
+      const diff = SKY.target - SKY.disp;
+      SKY.disp = Math.abs(diff) < 1000 || REDUCED ? SKY.target : SKY.disp + diff * (1 - Math.exp(-dt * 7));
+      const d = new Date(SKY.disp);
+      SKY.lay = skyLayout(v.rect, S);
+      skyFrame(d);
+      // таблица, карточка Луны, шкала — не чаще 4 раз в секунду и только когда сменилась минута
+      const city = cityOf(), minKey = hhmm(SKY.disp, city.tz) + ':' + Math.floor(SKY.disp / 86400e3) + ':' + SKY.cityIdx + ':' + SKY.live + SKY.play;
+      if (minKey !== SKY.lastMin && now - lastFill > 240) {
+        SKY.lastMin = minKey; lastFill = now;
+        fillTable(SKY.pos); fillWhen(SKY.disp); buildDay(SKY.disp);
+        if (Math.floor(SKY.disp / 3600e3) !== SKY.moonHour) { SKY.moonHour = Math.floor(SKY.disp / 3600e3); fillMoon(d, SKY.pos); }
+      }
+      placeKnob(SKY.disp);
+      // выделение
+      const want = SKY.hover >= 0 ? SKY.hover : SKY.pin;
+      if (want >= 0) SKY.hl = want;
+      SKY.hlA += ((want >= 0 ? 1 : 0) - SKY.hlA) * (1 - Math.exp(-dt * 8));
+      rows.forEach((tr, j) => tr.classList.toggle('on', j === want));
+      // тела
+      SKY.bodies.forEach((b, i) => {
+        bp.set([b.x, b.y, b.r, b.z], i * 4); bl.set(b.light, i * 3);
+        bo.set([b.ring, b.ph], i * 2);
+      });
+      // подписи
+      let n = 0;
+      const pushLab = (l, x, y, col, a) => { lb.set([x, y, l.w, l.h], n * 4); luv.set([0, l.v0, l.u1, l.v1], n * 4); lc.set([...col, a], n * 4); n++; };
+      const ec = SKY.lay.ec, er = SKY.lay.er;
+      // подписи тел: из нескольких мест вокруг тела берём первое, где подпись не задевает другие тела и подписи
+      const vis = SKY.bodies.map((b, i) => ({ i, b, l: LABELS[i], hidden: b.z < 0 && Math.hypot(b.x - ec[0], b.y - ec[1]) < er + b.r })).filter(o => o.l.w && !o.hidden);
+      vis.sort((a, b) => b.b.r - a.b.r);
+      const placed = [];
+      const hitsRect = (x, y, w, h) => SKY.bodies.some(b => { const rr = b.k === 'sun' ? b.r * 2.6 : b.r; return Math.abs(b.x - x) < w / 2 + rr && Math.abs(b.y - y) < h / 2 + rr; }) || placed.some(r => Math.abs(r.x - x) < (w + r.w) / 2 && Math.abs(r.y - y) < (h + r.h) / 2) || Math.hypot(x - ec[0], y - ec[1]) < er + 4 * S;
+      for (const o of vis) {
+        const { b, l } = o, w = l.w, h = l.h * .6, g = 6 * S;
+        const cand = [[b.x + b.r * .3 + w / 2, b.y - b.r - g - h / 2], [b.x - b.r * .3 - w / 2, b.y - b.r - g - h / 2], [b.x + b.r + g + w / 2, b.y], [b.x - b.r - g - w / 2, b.y], [b.x, b.y + b.r + g + h / 2], [b.x + b.r * .3 + w / 2, b.y - b.r - g * 3 - h * 1.5]];
+        let pos = cand.find(([x, y]) => !hitsRect(x, y, w, h)) || cand[0];
+        placed.push({ x: pos[0], y: pos[1], w, h });
+        const on = SKY.hl === o.i ? SKY.hlA : 0;
+        pushLab(l, pos[0], pos[1], [.78 + .2 * on, .83 + .15 * on, .9 + .1 * on], .82 + .18 * on);
+      }
+      ZOD.forEach((z, i) => { const l = LABELS[10 + i], p = SKY.conLab[i]; if (l.w && p && Math.hypot(p.x - ec[0], p.y - ec[1]) > er * 1.12 && p.y > 120 * S && !SKY.lay.portrait) pushLab(l, p.x, p.y, [.55, .64, .76], .55); });
+      const cl = LABELS[LABELS.length - 1];
+      if (cl.w && SKY.cityW[2] > 0.15) pushLab(cl, ec[0] + SKY.cityW[0] * er + cl.w / 2 + 6 * S, ec[1] + SKY.cityW[1] * er + 12 * S, [.92, .95, 1], .85);
+      upload(gl);
+      gl.uniform1i(L('u_lab'), 6); gl.uniform1i(L('u_cseg'), 7);
+      gl.uniform4fv(L('u_cbox'), SKY.boxes); gl.uniform2fv(L('u_crange'), SKY.ranges); gl.uniform1i(L('u_ncon'), ZOD.length);
+      gl.uniform2f(L('u_ec'), ec[0], ec[1]); gl.uniform1f(L('u_er'), er);
+      gl.uniformMatrix3fv(L('u_M'), false, new Float32Array(SKY.A));
+      gl.uniform1f(L('u_gmst'), SKY.gmst); gl.uniform1f(L('u_cloud'), (now / 1000) * 0.0035);
+      gl.uniform3f(L('u_sunW'), ...SKY.sunW); gl.uniform3f(L('u_cityW'), ...SKY.cityW);
+      gl.uniform2f(L('u_orb'), ROLL, SQ);
+      gl.uniform2fv(L('u_bo'), bo); gl.uniform4fv(L('u_bp'), bp); gl.uniform3fv(L('u_bl'), bl);
+      gl.uniform1i(L('u_hl'), SKY.hlA > 0.01 ? SKY.hl : -1); gl.uniform1f(L('u_hlA'), SKY.hlA);
+      gl.uniform4fv(L('u_lb'), lb); gl.uniform4fv(L('u_luv'), luv); gl.uniform4fv(L('u_lc'), lc); gl.uniform1i(L('u_nlab'), n);
+      gl.uniform1f(L('u_play'), SKY.play ? 1 : 0);
+      placeTip();
     },
   });
-  function placeGlobeLabel(b, rect) {
-    const i = NOW.hl;
-    if (i < 0 || !rect) { globeLabel.classList.remove('on'); return; }
-    const P = [plArr[i * 3] * 1.0, plArr[i * 3 + 1] * 1.0, plArr[i * 3 + 2] * 1.0];
-    const rel = [P[0] - b.c[0], P[1] - b.c[1], P[2] - b.c[2]];
-    const z = rel[0] * b.f[0] + rel[1] * b.f[1] + rel[2] * b.f[2];
-    const x = (rel[0] * b.r[0] + rel[1] * b.r[1] + rel[2] * b.r[2]) / z * b.fl;
-    const y = (rel[0] * b.u[0] + rel[1] * b.u[1] + rel[2] * b.u[2]) / z * b.fl;
-    const half = Math.min(rect.width, rect.height) / 2;
-    const k = UNI_ORDER[i], p = NOW.pos[k];
-    globeLabel.textContent = `${PL[k].name} · ${fmtPos(p.lon)} ${signOf(p.lon).gen}`;
-    globeLabel.style.left = (rect.width / 2 + x * half) + 'px';
-    globeLabel.style.top = (rect.height / 2 - y * half) + 'px';
-    globeLabel.classList.add('on');
-  }
   const ephTable = $('eph');
   new IntersectionObserver((es, o) => { for (const e of es) if (e.isIntersecting) { ephTable.classList.add('shown'); o.disconnect(); } }, { threshold: 0.25 }).observe(ephTable);
+  // первое заполнение до первого кадра сцены (и для браузеров без WebGL)
+  function skyInit() {
+    setSkyCity(0);
+    const d = new Date(); SKY.pos = positions(d);
+    fillTable(SKY.pos); fillWhen(d.getTime()); buildDay(d.getTime()); placeKnob(d.getTime()); fillMoon(d, SKY.pos);
+    const ph = moonPhase(d), ms = signOf(SKY.pos.moon.lon);
+    drawMoonDisc($('moonSmall'), ph.elong);
+    $('moonSmallTitle').textContent = phaseName(ph.elong);
+    $('moonSmallText').textContent = ` · освещено ${Math.round(ph.illum * 100)}%, ${ms.loc}`;
+  }
+  // Луна для карточки — по карте поверхности из атласа (ортографическая проекция видимой стороны)
+  const moonImg = new Image(); let moonPx = null;
+  moonImg.onload = () => {
+    try { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d'); g.drawImage(moonImg, 0, 0, 512, 256, 0, 0, 512, 256); moonPx = g.getImageData(0, 0, 512, 256).data; } catch (e) { moonPx = null; }
+    if (SKY.pos) drawMoonReal($('moonCard'), moonPhase(new Date(SKY.disp)).elong);
+  };
+  moonImg.src = 'assets/sky/planets.webp';
+  function drawMoonReal(cv, elong) {
+    if (!moonPx) { drawMoonDisc(cv, elong); return; }
+    const g = cv.getContext('2d'), N = cv.width, R = N * .46, im = g.createImageData(N, N), e = elong * RAD;
+    const L = [Math.sin(e), 0, -Math.cos(e)];
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+      const dx = (x - N / 2 + .5) / R, dy = (y - N / 2 + .5) / R, r2 = dx * dx + dy * dy, o = (y * N + x) * 4;
+      if (r2 >= 1) { im.data[o + 3] = 0; continue; }
+      const z = Math.sqrt(1 - r2), lat = Math.asin(-dy), lon = Math.atan2(dx, z);
+      const u = Math.floor((lon / (2 * Math.PI) + .5) * 511), v = Math.floor((.5 - lat / Math.PI) * 255);
+      const s = (v * 512 + u) * 4, lam = Math.max(0, dx * L[0] + z * L[2]);
+      const k = Math.min(1, lam * 1.15 + 0.13), edge = Math.min(1, (1 - Math.sqrt(r2)) * R * 1.2);
+      im.data[o] = moonPx[s] * k; im.data[o + 1] = moonPx[s + 1] * k; im.data[o + 2] = Math.min(255, moonPx[s + 2] * k * 1.04); im.data[o + 3] = 255 * edge;
+    }
+    g.clearRect(0, 0, N, N); g.putImageData(im, 0, 0);
+  }
+  // город из карты рождения — и в «Небе сегодня»
+  const skySetCityFromChart = place => { const i = CITIES.findIndex(c => c[0] === place.name); if (i >= 0) setSkyCity(i); };
+
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => buildLabels(SKY.S));
 
   // ——— 04 натальная карта ———
   function buildChart(date, place, timeKnown) {
@@ -809,7 +1098,7 @@
     meta.push(ch.timeKnown ? `${String(local.getUTCHours()).padStart(2, '0')}:${String(local.getUTCMinutes()).padStart(2, '0')}` : 'время неизвестно — дома не строятся');
     meta.push(escapeHtml(ch.place.name));
     $('chartMeta').innerHTML = meta.join('<span aria-hidden="true">·</span>');
-    GLOBE.city = [ch.place.lat * RAD, ch.place.lon * RAD];
+    skySetCityFromChart(ch.place);
     renderReading(ch);
     ceremony(ch, fresh);
   }
@@ -1085,7 +1374,7 @@
   // ——— запуск ———
   function boot() {
     sizeWheel(); sizePair(); sizeFrames();
-    setNow(new Date());
+    skyInit();
     const sample = { name: 'Москва', lat: 55.76, lon: 37.62, tz: 3 };
     const ch = buildChart(localToUTC('1995-06-14', '08:30', 3), sample, true);
     setChart(ch, true, true);
@@ -1093,7 +1382,6 @@
     redrawWheel();
     computePair(false);
     $('reading').classList.add('built');
-    setInterval(() => { if (NOW.live) setNow(new Date()); }, 60000);
   }
   let rt;
   window.addEventListener('resize', () => {

@@ -145,11 +145,27 @@
       ema = 16; emaN = 0;
     }
   }
-  Stage.stats = () => ({ tier, frameMs: +ema.toFixed(1), dpr: S, canvas: [W, H] });
+  Stage.stats = () => ({ tier, frameMs: +ema.toFixed(1), cpuMs: +cpuEma.toFixed(2), dpr: S, canvas: [W, H] });
+  // замер времени сцен на видеокарте: ?gpu — EXT_disjoint_timer_query_webgl2, среднее по последним кадрам
+  const TQ = params.has('gpu') ? gl.getExtension('EXT_disjoint_timer_query_webgl2') : null;
+  const tqPending = [], tqAcc = {};
+  Stage.gpuStats = () => Object.fromEntries(Object.entries(tqAcc).map(([k, v]) => [k, { ms: +(v.sum / Math.max(1, v.n)).toFixed(3), max: +v.max.toFixed(3), n: v.n }]));
+  Stage.gpuReset = () => { for (const k in tqAcc) delete tqAcc[k]; };
+  function tqPoll() {
+    while (tqPending.length) {
+      const [q, name] = tqPending[0];
+      if (!gl.getQueryParameter(q, gl.QUERY_RESULT_AVAILABLE)) break;
+      tqPending.shift();
+      if (!gl.getParameter(TQ.GPU_DISJOINT_EXT)) { const ms = gl.getQueryParameter(q, gl.QUERY_RESULT) / 1e6; const a = tqAcc[name] || (tqAcc[name] = { sum: 0, n: 0, max: 0 }); a.sum += ms; a.n++; a.max = Math.max(a.max, ms); }
+      gl.deleteQuery(q);
+    }
+  }
 
   const STILL_T = 40; // при «меньше движения» сцены рисуются в этот момент времени, без анимации
+  let cpuEma = 0;
   function frame(now) {
     raf = 0;
+    const cpu0 = performance.now();
     const dt = last ? Math.min(0.1, (now - last) / 1000) : 1 / 60; last = now;
     resize();
     const time = REDUCED ? STILL_T : (now - t0) / 1000;
@@ -205,15 +221,20 @@
         unit++;
       }
       if (v.uniforms) v.uniforms(gl, P.loc, v, now, dt);
+      let q = null;
+      if (TQ && tqPending.length < 30) { q = gl.createQuery(); gl.beginQuery(TQ.TIME_ELAPSED_EXT, q); }
       gl.drawArrays(gl.TRIANGLES, 0, 3);
+      if (q) { gl.endQuery(TQ.TIME_ELAPSED_EXT); tqPending.push([q, v.scene]); }
     }
     // заранее подгрузить текстуры видов, к которым подъезжаем (полтора экрана вперёд)
     for (const v of views) if (!v.visible && v.rect && v.rect.top < cssH * 2.5 && v.rect.bottom > -cssH) for (const slot of Object.values(v.tex)) if (!slot.t) slot.t = Stage.texture(slot.url);
     queueCompile();
+    if (TQ) tqPoll();
     let again = false;
     for (const f of frameFns) if (f(now, dt)) again = true;
     watch(dt);
     // при «меньше движения» кадры идут только пока сцена не собрана или не догрузилась
+    cpuEma = cpuEma * 0.95 + (performance.now() - cpu0) * 0.05;
     if ((!REDUCED && (any || again)) || pend) kick();
   }
   loopFn = frame;
