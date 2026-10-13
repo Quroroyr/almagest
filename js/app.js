@@ -394,20 +394,112 @@
 
   // ——— 02 вселенная в тебе ———
   const uni = $('universe'), uniStage = $('uniStage');
-  const UNI = { hl: -1, sp: 0 };
+  const UNI = { hl: -1, sp: 0, hover: -1 };
   const uniList = $('planetList');
   // порядок на экране — от Солнца наружу; в шейдере тот же порядок
   const UNI_ORDER = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn', 'uranus', 'neptune', 'pluto'];
   uniList.innerHTML = UNI_ORDER.map((k, i) => `<li><button type="button" data-i="${i}"><span class="sym" aria-hidden="true">${PL[k].glyph}</span>${PL[k].name}</button></li>`).join('');
+  // ——— планеты нажимаются: на небе и в списке. Карточка — где планета сейчас, что значит в карте, факты ———
+  UNI.pin = -1;
+  const MEANING = {
+    sun: 'Знак Солнца — то, что обычно называют «твоим знаком»: характер, воля, то, ради чего живёшь.',
+    moon: 'Чувства и привычки: что успокаивает, как реагируешь, когда никто не смотрит.',
+    mercury: 'Как думаешь, учишься и говоришь; на какой волне тебе проще договориться.',
+    venus: 'Что тебе нравится и как ты любишь: вкус, тепло, притяжение.',
+    mars: 'Энергия и напор: как берёшься за дело, споришь и не сдаёшься.',
+    jupiter: 'Рост и удача: где тебе легче расширяться и где жизнь щедрее.',
+    saturn: 'Опыт и границы: что даётся дольше всего, но потом держит крепче всего.',
+    uranus: 'Свобода и перемены. Идёт по знаку семь лет — это черта целого поколения.',
+    neptune: 'Мечты, вдохновение, туман. Знак общий для поколения, в личной карте важнее дом.',
+    pluto: 'Глубина и перерождение. Самая медленная из учитываемых, задаёт фон поколения.',
+  };
+  const FACTS = {
+    sun: 'Звезда в 109 раз шире Земли. Свет от неё идёт до нас 8 минут 20 секунд.',
+    moon: 'В 384 400 км от Земли. Оборот вокруг Земли — 27,3 суток, от новолуния до новолуния — 29,5.',
+    mercury: '0,39 а. е. от Солнца, год длится 88 суток. С Земли никогда не отходит от Солнца дальше 28°.',
+    venus: '0,72 а. е. от Солнца, год — 225 суток. Ярче неё на ночном небе только Луна.',
+    mars: '1,52 а. е. от Солнца, год — 687 суток. Раз в два года подходит к Земле ближе всего и пятится по небу.',
+    jupiter: '5,2 а. е. от Солнца, оборот — 11,9 года: примерно год в каждом знаке.',
+    saturn: '9,5 а. е. от Солнца, оборот — 29,5 года. Возвращается на своё место в карте примерно в 29 лет.',
+    uranus: '19,2 а. е. от Солнца, оборот — 84 года. Открыт в 1781 году, глазом еле виден.',
+    neptune: '30,1 а. е. от Солнца, оборот — 165 лет. Найден в 1846 году расчётом, «на кончике пера».',
+    pluto: '39,5 а. е. от Солнца, оборот — 248 лет. С 2006 года карликовая планета, но в астрологии остался.',
+    earth: 'Ты здесь. Все положения на сайте считаются отсюда — так, как светила видны с Земли.',
+  };
+  const PRON = { sun: 'оно', moon: 'она' };
+  const card = document.createElement('aside');
+  card.className = 'planet-card'; card.id = 'planetCard'; card.hidden = true; card.setAttribute('aria-live', 'polite');
+  uniStage.appendChild(card);
+  function markList(i) { uniList.querySelectorAll('button').forEach(x => x.classList.toggle('on', +x.dataset.i === i)); }
+  function openPlanet(i) {
+    if (i < 0) { UNI.pin = -1; card.hidden = true; markList(UNI.hl); Stage.invalidate(); return; }
+    UNI.pin = i;
+    if (i === 10) {
+      card.innerHTML = `<button class="pc-x" type="button" aria-label="Закрыть">×</button><p class="pc-h"><span class="sym" aria-hidden="true">♁</span>Земля</p><p class="pc-f">${FACTS.earth}</p><div class="pc-go"><a href="#chart">Построить свою карту →</a></div>`;
+    } else {
+      const k = UNI_ORDER[i], now = new Date(), p = positions(now)[k], sg = signOf(p.lon);
+      const mv = k === 'sun' ? 'видимое движение — прямое' : k === 'moon' ? phaseName(moonPhase(now).elong).toLowerCase() : p.retro ? '<span class="tense">ретроградное движение</span>' : 'прямое движение';
+      card.innerHTML = `<button class="pc-x" type="button" aria-label="Закрыть">×</button>
+        <p class="pc-h"><span class="sym" aria-hidden="true">${PL[k].glyph}</span>${PL[k].name}</p>
+        <p class="pc-now">Сейчас: <b>${fmtPos(p.lon)} ${sg.gen}</b> · ${mv}</p>
+        <p class="pc-m"><b>${PL[k].frame}.</b> ${MEANING[k]}</p>
+        <p class="pc-f">${FACTS[k]}</p>
+        <div class="pc-go"><a href="#chart">Где ${PRON[k] || 'она'} в моей карте →</a><a href="#now" data-go="now">Показать на небе сегодня →</a></div>`;
+    }
+    card.hidden = false;
+    card.querySelector('.pc-x').addEventListener('click', () => openPlanet(-1));
+    const goNow = card.querySelector('[data-go="now"]');
+    if (goNow) goNow.addEventListener('click', () => setTimeout(() => { const tr = $('ephBody').children[i]; if (tr && !tr.classList.contains('pin')) tr.click(); }, 700));
+    markList(i); Stage.invalidate();
+  }
   for (const b of uniList.querySelectorAll('button')) {
-    const on = () => { UNI.hl = +b.dataset.i; uniList.querySelectorAll('button').forEach(x => x.classList.toggle('on', x === b)); Stage.invalidate(); };
-    const off = () => { UNI.hl = -1; b.classList.remove('on'); Stage.invalidate(); };
+    const on = () => { UNI.hl = +b.dataset.i; markList(UNI.hl); Stage.invalidate(); };
+    const off = () => { UNI.hl = -1; markList(UNI.pin); Stage.invalidate(); };
     b.addEventListener('pointerenter', on); b.addEventListener('pointerleave', off);
     b.addEventListener('focus', on); b.addEventListener('blur', off);
+    b.addEventListener('click', () => openPlanet(UNI.pin === +b.dataset.i ? -1 : +b.dataset.i));
   }
+  uniList.setAttribute('aria-label', 'Планеты: нажми, чтобы узнать, где она сейчас');
+  // где планеты на экране — те же формулы, что в шейдере intro.frag
+  const AU_ = [0, 1, .387, .723, 1.524, 5.203, 9.537, 19.19, 30.07, 39.48], SIZE_ = [0, .016, .014, .026, .019, .068, .056, .035, .034, .011];
+  const OFF_ = [0, .05, .22, -.2, .14, -.12, .2, -.16, .1, -.22], RK_ = [0, .82, .66, .74, .9, 1, 1.1, 1.19, 1.27, 1.34];
+  function uniBodyAt(cx, cy) {
+    const r = uniStage.getBoundingClientRect(), a = r.width / r.height, t = Stage.sceneTime(), sp = UNI.sp;
+    const qx = (cx - r.left - r.width / 2) / r.height, qy = (r.height / 2 - (cy - r.top)) / r.height;
+    const pt = 1 - smooth(.75, 1.2, a), cam = sp * 1.15;
+    const Sx = -a * .5 - .55, Sy = .95 + cam * .55, dc = Math.hypot(Sx, Sy), thc = Math.atan2(-Sy, -Sx);
+    const pad = 12 / r.height; // запас вокруг диска для курсора и пальца
+    let best = -1, bd = Infinity;
+    for (let i = 1; i < 10; i++) {
+      const rad = dc * RK_[i], w = .0175 / Math.pow(Math.max(AU_[i], .3), 1.5), th = thc + OFF_[i] - t * w;
+      const ex = Sx + rad * Math.cos(th), ey = Sy + rad * Math.sin(th);
+      const x = i === 1 ? ex + .045 * Math.cos(t * .3) : ex, y = i === 1 ? ey + .045 * Math.sin(t * .3) : ey;
+      const depth = i / 9, lift = cam * (.25 + .35 * (1 - depth)), zoom = 1 + sp * .12 * (1 - depth);
+      const cand = [[i, x * zoom, (y + lift) * zoom, SIZE_[i] * (1 - .2 * pt)]];
+      if (i === 1) cand.push([10, ex * zoom, (ey + lift) * zoom, .02 * (1 - .2 * pt)]);
+      for (const [k, px, py, rr] of cand) { const d = Math.hypot(qx - px, qy - py) - rr; if (d < pad && d < bd) { bd = d; best = k; } }
+    }
+    return best;
+  }
+  uniStage.addEventListener('pointermove', e => {
+    if (e.pointerType !== 'mouse' || e.target.closest('a, button, .planet-card')) return;
+    const i = uniBodyAt(e.clientX, e.clientY);
+    uniStage.style.cursor = i >= 0 ? 'pointer' : '';
+    if (i !== UNI.hover) { UNI.hover = i; Stage.invalidate(); }
+  });
+  uniStage.addEventListener('pointerleave', () => { UNI.hover = -1; uniStage.style.cursor = ''; });
+  uniStage.addEventListener('click', e => {
+    if (e.target.closest('a, button, .planet-card')) return;
+    const i = uniBodyAt(e.clientX, e.clientY);
+    if (i >= 0) openPlanet(UNI.pin === i ? -1 : i); else if (UNI.pin >= 0) openPlanet(-1);
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && UNI.pin >= 0) openPlanet(-1); });
   Stage.view(uniStage, 'intro', {
     progEl: uni, textures: { u_valley: plateUrl('intro-valley') },
-    uniforms: (gl, L) => { gl.uniform1f(L('u_sp'), UNI.sp); gl.uniform1i(L('u_hl'), UNI.hl); },
+    uniforms: (gl, L) => {
+      const hl = UNI.hl >= 0 ? UNI.hl : UNI.hover >= 0 ? UNI.hover : UNI.pin;
+      gl.uniform1f(L('u_sp'), UNI.sp); gl.uniform1i(L('u_hl'), hl);
+    },
   });
   Stage.onFrame(() => {
     const r = uni.getBoundingClientRect(), vh = window.innerHeight;
@@ -1210,23 +1302,65 @@
     }
     const [name, lat, lon, tz] = CITIES[+citySel.value]; return { name, lat, lon, tz };
   }
+  // дата рождения вводится руками в виде ДД.ММ.ГГГГ (точки ставятся сами) или выбирается в календаре.
+  // Стандартное поле даты при наборе с клавиатуры путает сегменты, поэтому оно спрятано и хранит только
+  // значение ГГГГ-ММ-ДД для расчётов, а человек работает с текстовым полем рядом.
+  const pad2 = n => String(n).padStart(2, '0');
+  const isoToText = v => (v ? `${v.slice(8, 10)}.${v.slice(5, 7)}.${v.slice(0, 4)}` : '');
+  function parseDateText(t) {
+    const m = t.trim().match(/^(\d{1,2})[.\/\-\s](\d{1,2})[.\/\-\s](\d{2}|\d{4})$/) || t.trim().match(/^(\d{2})(\d{2})(\d{4})$/);
+    if (!m) return { err: 'Дата — в виде ДД.ММ.ГГГГ, например 15.08.1990' };
+    let [, d, mo, y] = m.map(Number);
+    if (m[3].length === 2) y += y > (new Date().getFullYear() % 100) ? 1900 : 2000; // 90 → 1990, 05 → 2005
+    const dt = new Date(Date.UTC(y, mo - 1, d));
+    if (mo < 1 || mo > 12 || dt.getUTCDate() !== d) return { err: 'Такой даты нет — проверь день и месяц' };
+    if (y < 1900 || y > 2099) return { err: 'Год — от 1900 до 2099' };
+    return { iso: `${y}-${pad2(mo)}-${pad2(d)}` };
+  }
+  function dateField(id) {
+    const iso = $(id), wrap = document.createElement('div'), txt = document.createElement('input'), cal = document.createElement('button');
+    wrap.className = 'date-in';
+    txt.type = 'text'; txt.id = id + 'Text'; txt.inputMode = 'numeric'; txt.autocomplete = 'off'; txt.placeholder = 'ДД.ММ.ГГГГ'; txt.maxLength = 10;
+    txt.value = isoToText(iso.value);
+    cal.type = 'button'; cal.className = 'date-cal'; cal.setAttribute('aria-label', 'Выбрать дату в календаре');
+    cal.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="1.5" y="2.5" width="13" height="12" rx="1.5" fill="none" stroke="currentColor"/><path d="M1.5 6h13M5 1v3M11 1v3" stroke="currentColor"/></svg>';
+    iso.parentNode.insertBefore(wrap, iso); wrap.append(txt, cal, iso);
+    iso.tabIndex = -1; iso.setAttribute('aria-hidden', 'true'); iso.classList.add('date-iso');
+    const lab = document.querySelector(`label[for="${id}"]`); if (lab) lab.htmlFor = txt.id;
+    txt.addEventListener('input', e => {
+      txt.setCustomValidity('');
+      // точки ставятся сами, пока человек печатает цифры подряд; поставил разделитель сам — не мешаем
+      if (!txt.value) txt.manual = false;
+      if (e.data && /[^\d]/.test(e.data)) txt.manual = true;
+      if (!txt.manual && e.inputType && e.inputType.startsWith('insert') && /^[\d.]*$/.test(txt.value)) {
+        const dg = txt.value.replace(/\D/g, '').slice(0, 8);
+        txt.value = dg.length > 4 ? `${dg.slice(0, 2)}.${dg.slice(2, 4)}.${dg.slice(4)}` : dg.length > 2 ? `${dg.slice(0, 2)}.${dg.slice(2)}` : dg;
+      }
+      const r = parseDateText(txt.value);
+      iso.value = r.iso || '';
+    });
+    txt.addEventListener('blur', () => { const r = parseDateText(txt.value); if (r.iso) { txt.value = isoToText(r.iso); txt.manual = false; } });
+    cal.addEventListener('click', () => { try { iso.showPicker(); } catch (e) { iso.tabIndex = 0; iso.focus(); } });
+    iso.addEventListener('change', () => { txt.value = isoToText(iso.value); txt.setCustomValidity(''); });
+    iso.textField = txt;
+  }
+  for (const id of ['bDate', 'aDate', 'cDate']) dateField(id);
   // дата рождения: заполнена и в пределах 1900–2099, иначе — подсказка у поля
   function validDate(inp) {
-    const v = inp.value, y = +v.slice(0, 4);
-    const msg = !v ? 'Укажи дату рождения' : y < 1900 || y > 2099 ? 'Год — от 1900 до 2099' : '';
-    inp.setCustomValidity(msg);
-    if (msg) { inp.reportValidity(); inp.focus(); return false; }
+    const txt = inp.textField || inp, r = txt.value.trim() ? parseDateText(txt.value) : { err: 'Укажи дату рождения' };
+    if (r.iso) inp.value = r.iso;
+    txt.setCustomValidity(r.err || '');
+    if (r.err) { txt.reportValidity(); txt.focus(); return false; }
     return true;
   }
-  for (const id of ['bDate', 'aDate', 'cDate']) $(id).addEventListener('input', e => e.target.setCustomValidity(''));
   function localToUTC(dateStr, timeStr, tz) {
     const [y, m, d] = dateStr.split('-').map(Number), [hh, mm] = (timeStr || '12:00').split(':').map(Number);
     return new Date(Date.UTC(y, m - 1, d, hh, mm) - tz * 3600e3);
   }
   $('birthForm').addEventListener('submit', e => {
     e.preventDefault();
-    const ds = $('bDate').value;
     if (!validDate($('bDate'))) return;
+    const ds = $('bDate').value;
     const noTime = $('bNoTime').checked;
     const place = readPlace();
     const ch = buildChart(localToUTC(ds, noTime ? '12:00' : $('bTime').value, place.tz), place, !noTime);
@@ -1392,8 +1526,8 @@
   }
   function computePair(fromUser) {
     const nameA = $('aName').value.trim() || 'Первый', nameB = $('cName').value.trim() || 'Второй';
-    const da = $('aDate').value, db = $('cDate').value;
     if (!validDate($('aDate')) || !validDate($('cDate'))) return;
+    const da = $('aDate').value, db = $('cDate').value;
     const noon = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d, 9, 0)); };
     PR.a = { pos: positions(noon(da)) }; PR.b = { pos: positions(noon(db)) };
     PR.cross = [];

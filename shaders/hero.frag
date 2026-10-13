@@ -219,5 +219,8 @@ void main() {
     col += vec3(.9, .94, 1.) * exp(-rd / (6. + 40. * k)) * fade * .6;
   }
 
+  // низ экрана уходит в ночь: терраса тонет в темноте, а не обрывается о следующую секцию
+  float foot = smoothstep(0., 220. * u_px, p.y);
+  col = mix(vec3(.016, .027, .05), col, foot * foot * (3. - 2. * foot));
   o = vec4(dither(col, p), 1.);
 }

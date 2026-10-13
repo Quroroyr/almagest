@@ -7,3 +7,4 @@ assets-src/
 refs/
 concept/
 tools/
+.playwright-mcp/

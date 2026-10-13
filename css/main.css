@@ -102,6 +102,12 @@ main, footer { position: relative; z-index: 1; }
 .field input:disabled { opacity: .45; }
 .field select option { background: var(--night); color: var(--moon); }
 .field select { appearance: none; padding-right: 36px; background-image: url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 12 8%27%3E%3Cpath d=%27M1 1.5l5 5 5-5%27 fill=%27none%27 stroke=%27%23b2bfce%27 stroke-width=%271.2%27/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 14px center; background-size: 11px 7px; cursor: pointer; }
+.date-in { position: relative; }
+.date-in input[type=text] { padding-right: 48px; letter-spacing: .04em; }
+.date-in .date-iso { position: absolute; right: 0; bottom: 0; width: 1px; height: 1px; padding: 0; border: 0; opacity: 0; pointer-events: none; }
+.date-cal { position: absolute; top: 0; right: 0; width: 46px; height: 48px; display: grid; place-items: center; background: none; border: 0; color: var(--steel); cursor: pointer; }
+.date-cal svg { width: 17px; height: 17px; }
+.date-cal:hover, .date-cal:focus-visible { color: var(--moon); }
 .field input::-webkit-calendar-picker-indicator { filter: invert(80%) sepia(10%) saturate(300%) hue-rotate(180deg); opacity: .7; cursor: pointer; }
 .check { display: inline-flex; align-items: center; gap: 10px; font-size: .92rem; color: var(--moon-dim); cursor: pointer; }
 .check input { appearance: none; width: 18px; height: 18px; margin: 0; border: 1px solid var(--line-strong); border-radius: 3px; background: transparent; display: grid; place-content: center; cursor: pointer; }
@@ -143,6 +149,18 @@ section.scene { position: relative; padding: clamp(96px, 12vw, 170px) var(--gutt
 .universe .stage { position: sticky; top: 0; height: 100svh; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: end; gap: 40px; padding: 120px var(--gutter) clamp(60px, 10vh, 120px); }
 .universe .copy { max-width: 520px; opacity: var(--copy-a, 0); transform: translateY(calc((1 - var(--copy-a, 0)) * 18px)); }
 .universe .copy .lede { margin: 22px 0 32px; }
+.planet-card { position: absolute; z-index: 3; right: calc(var(--gutter) + 210px); top: 50%; transform: translateY(-50%); width: min(340px, 40vw); padding: 20px 22px 18px; display: grid; gap: 10px; background: var(--glass); backdrop-filter: blur(10px); border: 1px solid var(--line-strong); border-radius: 8px; color: var(--moon-dim); font-size: .95rem; line-height: 1.5; }
+.planet-card p { margin: 0; }
+.planet-card .pc-h { display: flex; align-items: center; gap: 12px; font: 400 1.6rem/1.1 var(--f-display); letter-spacing: .06em; text-transform: uppercase; color: var(--moon); }
+.planet-card .pc-h .sym { font-size: 1.3rem; color: var(--steel); }
+.planet-card .pc-now b, .planet-card .pc-m b { color: var(--moon); font-weight: 400; }
+.planet-card .pc-f { font: italic 400 .98rem/1.45 var(--f-display); color: var(--steel); }
+.planet-card .tense { color: var(--tense); }
+.planet-card .pc-go { display: grid; gap: 6px; margin-top: 4px; padding-top: 12px; border-top: 1px solid var(--line); }
+.planet-card .pc-go a { font: italic 400 1rem/1.3 var(--f-display); color: var(--moon); }
+.planet-card .pc-go a:hover { color: #fff; }
+.planet-card .pc-x { position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border: 0; background: none; color: var(--steel); font-size: 1.4rem; line-height: 1; cursor: pointer; }
+.planet-card .pc-x:hover { color: var(--moon); }
 .planet-list { list-style: none; margin: 0; padding: 0; align-self: center; display: grid; gap: 2px; opacity: var(--list-a, 0); }
 .planet-list button { display: grid; grid-template-columns: 26px auto; gap: 14px; align-items: center; width: 100%; padding: 7px 4px 7px 0; border: 0; background: transparent; cursor: pointer; text-align: left;
   font: 500 .8rem/1 var(--f-display); letter-spacing: .26em; text-transform: uppercase; color: var(--moon-dim); transition: color .25s, transform .3s var(--ease); }
@@ -355,6 +373,7 @@ footer .brand-f { font: 500 .95rem/1 var(--f-display); letter-spacing: .34em; te
   .wheel-col { position: relative; top: 0; order: -1; }
   .universe .stage { grid-template-columns: 1fr; align-content: end; }
   .planet-list { display: flex; flex-wrap: wrap; gap: 0 14px; align-self: auto; }
+  .planet-card { left: var(--gutter); right: var(--gutter); top: auto; bottom: 16px; transform: none; width: auto; }
   .planet-list button { grid-template-columns: auto auto; gap: 6px; padding: 6px 0; font-size: .7rem; letter-spacing: .16em; }
 }
 @media (max-width: 760px) {

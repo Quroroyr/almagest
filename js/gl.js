@@ -153,6 +153,7 @@
     }
   }
   Stage.clock = () => (performance.now() - t0) / 1000; // то же время, что u_time
+  Stage.sceneTime = () => (REDUCED ? STILL_T : Stage.clock());
   Stage.stats = () => ({ tier, frameMs: +ema.toFixed(1), cpuMs: +cpuEma.toFixed(2), dpr: S, canvas: [W, H] });
   // замер времени сцен на видеокарте: ?gpu — EXT_disjoint_timer_query_webgl2, среднее по последним кадрам
   const TQ = params.has('gpu') ? gl.getExtension('EXT_disjoint_timer_query_webgl2') : null;

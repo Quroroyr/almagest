@@ -126,10 +126,14 @@ void main() {
   if (ringA > 0. && rp.y <= 0.) col = mix(col, vec3(.7, .67, .6) * ringLit, ringA * .85);
 
   // туман: на второй половине прокрутки камера проходит сквозь невысокий слой
-  float fogY = mix(-1.2, 1.1, smoothstep(.42, .92, sp));
-  float fogN = fbm(q * vec2(1.6, 4.) + vec2(t * .02, sp * 1.5), O);
-  float fog = smoothstep(.25, .75, fogN) * exp(-pow((q.y - fogY) / .28, 2.));
-  col = mix(col, vec3(.2, .25, .32), fog * .8);
+  // облака рваные, клочьями (деформированный шум), а не ровной лентой; полупрозрачные, звёзды сквозь них видны
+  float fogY = mix(-1.3, 1.2, smoothstep(.4, .95, sp));
+  vec2 fq = q * vec2(1.1, 2.4) + vec2(t * .012, sp * 1.1);
+  vec2 wq = vec2(fbm(fq * .6 + 3.1, 3), fbm(fq * .6 + 8.4, 3));
+  float fogN = fbm(fq + wq * 1.8, O);
+  float env = exp(-pow((q.y - fogY) / .45, 2.)) * smoothstep(.36, .5, sp);
+  float fog = smoothstep(.48, .86, fogN) * env;
+  col = mix(col, vec3(.12, .15, .2) * (.75 + .5 * fogN), fog * .55);
 
   // долина появляется под туманом
   float vy = mix(-1.55, -.62, smoothstep(.55, 1., sp));
@@ -140,11 +144,12 @@ void main() {
   vc = mix(vc, vec3(.1, .13, .18), .25);
   col = mix(col, vc, val.a * u_valleyOk);
   // остатки тумана над долиной
-  float low = smoothstep(.4, .8, fbm(q * vec2(2.5, 8.) + vec2(t * .015, 0.), O)) * exp(-pow((q.y - vy - .55) / .1, 2.)) * smoothstep(.6, .95, sp);
-  col = mix(col, vec3(.32, .38, .46), low * .45);
+  vec2 lq = q * vec2(1.8, 5.) + vec2(t * .015, 0.);
+  float low = smoothstep(.5, .85, fbm(lq + 1.5 * vec2(fbm(lq * .5, 3), fbm(lq * .5 + 4.3, 3)), O)) * exp(-pow((q.y - vy - .42) / .14, 2.)) * smoothstep(.6, .95, sp);
+  col = mix(col, vec3(.24, .29, .36), low * .35);
 
   // верхний край вида сливается с первым экраном
-  float edge = smoothstep(0., 120. * u_px, u_res.y - p.y) * smoothstep(0., 90. * u_px, p.y); // и нижний — со следующей секцией
+  float edge = smoothstep(0., 200. * u_px, u_res.y - p.y) * smoothstep(0., 90. * u_px, p.y); // и нижний — со следующей секцией
   col = mix(vec3(.016, .027, .05), col, edge);
   o = vec4(dither(col, p), 1.);
 }
