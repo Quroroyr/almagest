@@ -40,7 +40,7 @@ a { color: var(--moon); text-decoration-color: var(--steel-dim); text-underline-
 main, footer { position: relative; z-index: 1; }
 .no-gl body { background: radial-gradient(120% 80% at 70% 10%, #13243a 0%, var(--night) 45%, var(--ink) 100%) fixed; }
 /* без WebGL первый экран — постер с кадром сцены */
-.no-gl .hero { background: url(../assets/hero-poster.webp) 62% 100% / cover no-repeat; }
+.no-gl .hero { background: url(../assets/hero-poster.webp?v=18ad703e) 62% 100% / cover no-repeat; }
 
 /* ——— шапка ——— */
 .top { position: fixed; inset: 0 0 auto 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; gap: 24px;

@@ -237,9 +237,9 @@
   // фото-слои: на высоком качестве — 2560 px, иначе 1408 (телефон, слабый компьютер)
   // (пути записаны целиком, чтобы сборка проставила им метку версии)
   const PLATES = {
-    'hero-far': ['assets/hero-far.webp', 'assets/hero-far-s.webp'], 'hero-near': ['assets/hero-near.webp', 'assets/hero-near-s.webp'],
-    'intro-valley': ['assets/intro-valley.webp', 'assets/intro-valley-s.webp'], 'method-room': ['assets/method-room.webp', 'assets/method-room-s.webp'],
-    'lake-shore': ['assets/lake-shore.webp', 'assets/lake-shore-s.webp'],
+    'hero-far': ['assets/hero-far.webp?v=01874d70', 'assets/hero-far-s.webp?v=0fbcb98a'], 'hero-near': ['assets/hero-near.webp?v=a17631b2', 'assets/hero-near-s.webp?v=bae80299'],
+    'intro-valley': ['assets/intro-valley.webp?v=7ef2ef87', 'assets/intro-valley-s.webp?v=e37057c4'], 'method-room': ['assets/method-room.webp?v=5ebdb77a', 'assets/method-room-s.webp?v=9a6153db'],
+    'lake-shore': ['assets/lake-shore.webp?v=f6d8866e', 'assets/lake-shore-s.webp?v=1d5fd6f3'],
   };
   const plateUrl = n => PLATES[n][Stage.tier === 'high' ? 0 : 1];
   const heroView = Stage.view(hero, 'hero', {
@@ -825,7 +825,7 @@
   const bp = new Float32Array(40), bl = new Float32Array(30), bo = new Float32Array(20);
   let lastFill = 0;
   Stage.view(skySec, 'sky', {
-    textures: { u_mw: `assets/sky/milkyway-${big ? '4k' : '2k'}.webp`, u_day: `assets/sky/earth-day-${big ? '4k' : '2k'}.webp`, u_aux: `assets/sky/earth-aux-${big ? '4k' : '2k'}.webp`, u_atlas: 'assets/sky/planets.webp' },
+    textures: { u_mw: `assets/sky/milkyway-${big ? '4k' : '2k'}.webp`, u_day: `assets/sky/earth-day-${big ? '4k' : '2k'}.webp`, u_aux: `assets/sky/earth-aux-${big ? '4k' : '2k'}.webp`, u_atlas: 'assets/sky/planets.webp?v=f9cf4eb9' },
     uniforms: (gl, L, v, now, dt) => {
       const S = gl.drawingBufferWidth / gl.canvas.clientWidth;
       if (Math.abs(S - SKY.S) > 0.01 || !labCv.width) { SKY.S = S; buildLabels(S); }
@@ -907,7 +907,7 @@
     try { const c = document.createElement('canvas'); c.width = 512; c.height = 256; const g = c.getContext('2d'); g.drawImage(moonImg, 0, 0, 512, 256, 0, 0, 512, 256); moonPx = g.getImageData(0, 0, 512, 256).data; } catch (e) { moonPx = null; }
     if (SKY.pos) drawMoonReal($('moonCard'), moonPhase(new Date(SKY.disp)).elong);
   };
-  moonImg.src = 'assets/sky/planets.webp';
+  moonImg.src = 'assets/sky/planets.webp?v=f9cf4eb9';
   function drawMoonReal(cv, elong) {
     if (!moonPx) { drawMoonDisc(cv, elong); return; }
     const g = cv.getContext('2d'), N = cv.width, R = N * .46, im = g.createImageData(N, N), e = elong * RAD;

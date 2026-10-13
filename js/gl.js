@@ -36,10 +36,11 @@
   }
 
   // исходники шейдеров лежат файлами в shaders/ и подгружаются сразу при старте
+  const SHADER_V = 'b1ea12c0'; // метка версии шейдеров (ставит scripts/stamp.js), чтобы после заливки не брались старые из кэша
   const SHADER_FILES = { common: 'glsl', hero: 'frag', intro: 'frag', sky: 'frag', quiet: 'frag', method: 'frag', lake: 'frag' };
   const SH = {};
   const shReady = Promise.all(Object.entries(SHADER_FILES).map(([n, ext]) =>
-    fetch(`shaders/${n}.${ext}`).then(r => (r.ok ? r.text() : Promise.reject(r.status))).then(t => { SH[n] = t; }, e => { SH[n] = false; console.error('шейдер ' + n + ' не загрузился:', e); })));
+    fetch(`shaders/${n}.${ext}${SHADER_V ? '?v=' + SHADER_V : ''}`).then(r => (r.ok ? r.text() : Promise.reject(r.status))).then(t => { SH[n] = t; }, e => { SH[n] = false; console.error('шейдер ' + n + ' не загрузился:', e); })));
   let shLoaded = false;
   shReady.then(() => { shLoaded = true; kick(); });
   const VERT = '#version 300 es\nin vec2 a;void main(){gl_Position=vec4(a,0.,1.);}';
