@@ -8,7 +8,19 @@
 <meta property="og:type" content="website">
 <meta property="og:title" content="Альмагест — твоё небо в минуту рождения">
 <meta property="og:description" content="Положения Солнца, Луны и планет на минуту твоего рождения — в живом атласе ночного неба.">
+<meta property="og:url" content="https://quroroyr.github.io/almagest/">
+<meta property="og:site_name" content="Альмагест">
+<meta property="og:locale" content="ru_RU">
+<meta property="og:image" content="https://quroroyr.github.io/almagest/assets/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Альмагест: ночная терраса обсерватории, горы и большая Луна">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="canonical" href="https://quroroyr.github.io/almagest/">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="manifest" href="site.webmanifest">
 <meta name="theme-color" content="#04070d">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebApplication","name":"Альмагест","url":"https://quroroyr.github.io/almagest/","description":"Натальная карта, совместимость пары и небо прямо сейчас — по настоящим астрономическим расчётам.","applicationCategory":"LifestyleApplication","operatingSystem":"Любая (браузер)","inLanguage":"ru","offers":{"@type":"Offer","price":"0","priceCurrency":"RUB"}}</script>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%2304070d'/%3E%3Cpath d='M16 5l2.2 8.8L27 16l-8.8 2.2L16 27l-2.2-8.8L5 16l8.8-2.2z' fill='%23e9eef4'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +38,7 @@
 <header class="top" id="top">
   <a class="brand" href="#hero" aria-label="Альмагест, наверх">Альмагест</a>
   <nav class="nav" aria-label="Разделы">
-    <a href="#chart">Натальная карта</a><a href="#pair">Совместимость</a><a href="#now">Небо сегодня</a><a href="#method">Как мы считаем</a><a href="#offer">Консультации</a>
+    <a href="#now">Небо сегодня</a><a href="#chart">Натальная карта</a><a href="#pair">Совместимость</a><a href="#method">Как мы считаем</a><a href="#offer">Консультации</a>
   </nav>
   <button class="burger" id="burger" type="button" aria-expanded="false" aria-controls="menu"><span></span><span></span><b class="sr">Меню</b></button>
 </header>
@@ -34,7 +46,7 @@
 <div class="menu" id="menu" role="dialog" aria-modal="true" aria-label="Меню разделов">
   <div class="menu-head"><span class="brand">Альмагест</span><button class="menu-close" id="menuClose" type="button"><b class="sr">Закрыть меню</b></button></div>
   <nav aria-label="Разделы">
-    <a href="#chart">Натальная карта</a><a href="#pair">Совместимость</a><a href="#now">Небо сегодня</a><a href="#method">Как мы считаем</a><a href="#offer">Консультации</a>
+    <a href="#now">Небо сегодня</a><a href="#chart">Натальная карта</a><a href="#pair">Совместимость</a><a href="#method">Как мы считаем</a><a href="#offer">Консультации</a>
   </nav>
   <p class="menu-foot">Положения светил считаются прямо в браузере.</p>
   <div class="sky" aria-hidden="true"><div class="planet"></div></div>
@@ -115,7 +127,10 @@
         <form class="birth" id="birthForm" novalidate>
           <div class="field"><label for="bDate">Дата рождения</label><input id="bDate" type="date" required min="1900-01-01" max="2099-12-31" value="1995-06-14"></div>
           <div class="field"><label for="bTime">Время</label><input id="bTime" type="time" value="08:30"></div>
-          <div class="field city"><label for="bCity">Город</label><select id="bCity"></select></div>
+          <div class="field city"><label for="bCity">Город рождения</label>
+            <div class="combo"><input id="bCity" type="text" autocomplete="off" spellcheck="false" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="bCityList" placeholder="Начни вводить название"><ul id="bCityList" role="listbox" aria-label="Найденные города" hidden></ul></div>
+            <p class="field-note"><span id="bCityNote" aria-live="polite"></span><button type="button" class="linkish" id="bCoordsBtn" aria-expanded="false" aria-controls="bCoords">указать координаты вручную</button></p>
+          </div>
           <div class="coords" id="bCoords">
             <div class="field"><label for="bLat">Широта, °</label><input id="bLat" type="number" step="0.01" min="-89" max="89" value="55.76" inputmode="decimal"></div>
             <div class="field"><label for="bLon">Долгота, ° (восток +)</label><input id="bLon" type="number" step="0.01" min="-180" max="180" value="37.62" inputmode="decimal"></div>
@@ -137,6 +152,11 @@
       <div class="wheel-col">
         <div class="wheel-wrap"><canvas id="wheel" role="img" aria-label="Натальная карта"></canvas></div>
         <p class="chart-meta" id="chartMeta"></p>
+        <div class="share-bar" id="shareBar" hidden>
+          <button class="btn" type="button" id="shareLink">Поделиться картой</button>
+          <button class="btn" type="button" id="shareImg">Скачать картинку</button>
+          <span class="share-msg" id="shareMsg" role="status"></span>
+        </div>
         <div class="layers" role="group" aria-label="Что выделить на карте">
           <button type="button" data-layer="planets" aria-pressed="false">Планеты</button><button type="button" data-layer="aspects" aria-pressed="false">Аспекты</button><button type="button" data-layer="houses" aria-pressed="false">Дома</button>
         </div>
@@ -178,12 +198,12 @@
     <div class="method-copy">
       <h2 class="h2" id="methodH">Как мы считаем</h2>
       <p class="sub">между наукой и традицией</p>
-      <p class="lede">Всё, что на этой странице можно посчитать, посчитано, а не выбрано случайно. Расчёт идёт прямо в браузере, данные никуда не отправляются. Толкования — традиция астрологии, а не научный прогноз.</p>
+      <p class="lede">Всё, что на этой странице можно посчитать, посчитано, а не выбрано случайно. Расчёт идёт прямо в браузере: даты и время рождения никуда не отправляются. Наружу уходит только название города, когда ищешь его в поиске. Толкования — традиция астрологии, а не научный прогноз.</p>
       <div class="method-list">
         <div><h3>Планеты</h3><p>Положения по элементам орбит с решением уравнения Кеплера и поправками на взаимное притяжение Юпитера и Сатурна. Точность — около одной-двух угловых минут.</p></div>
         <div><h3>Луна</h3><p>Орбита Луны плюс двенадцать главных неравенств её движения. Ошибка — несколько угловых минут, для знака и градуса этого достаточно.</p></div>
         <div><h3>Асцендент и дома</h3><p>Восходящий знак — по местному звёздному времени и широте города. Дома — равные, по тридцать градусов от асцендента.</p></div>
-        <div class="limit"><h3>Ограничения</h3><p>Часовые пояса городов — нынешние; летнее время прошлых лет не учитывается. Если родился до 2011 года летом, уточни время в свидетельстве. Совместимость считается на полдень.</p></div>
+        <div class="limit"><h3>Ограничения</h3><p>Время рождения переводится по поясу города с историей перевода часов, включая летнее время прошлых лет. Время из роддома часто округлено до 5–10 минут — асцендент от этого может сдвинуться на градус-два. Совместимость считается на полдень.</p></div>
       </div>
     </div>
   </section>
@@ -196,19 +216,19 @@
       <article class="offer" style="--i:0">
         <svg class="frame" aria-hidden="true"><rect x=".5" y=".5" rx="10" ry="10"/></svg>
         <div class="img"><img src="assets/card-natal.webp" alt="" width="768" height="576" loading="lazy" decoding="async"></div>
-        <div class="body"><h3>Разбор натальной карты</h3><p>Письменный разбор по твоей карте: сильные стороны, повторяющиеся сюжеты, на что обратить внимание в ближайший год.</p><p class="price"><span class="fill">цена — заполнить</span></p><a class="btn" href="#contacts">Заказать</a></div>
+        <div class="body"><h3>Разбор натальной карты</h3><p>Письменный разбор по твоей карте: сильные стороны, повторяющиеся сюжеты, на что обратить внимание в ближайший год.</p><p class="price"><span class="fill">цена — заполнить</span></p><button class="btn" type="button" data-order="0">Заказать</button></div>
         <span class="light" aria-hidden="true"></span>
       </article>
       <article class="offer" style="--i:1">
         <svg class="frame" aria-hidden="true"><rect x=".5" y=".5" rx="10" ry="10"/></svg>
         <div class="img"><img src="assets/card-pair.webp" alt="" width="768" height="576" loading="lazy" decoding="async"></div>
-        <div class="body"><h3>Совместимость пары</h3><p>Разбор двух карт вместе: все связи между планетами с точным временем рождения обоих, а не на полдень.</p><p class="price"><span class="fill">цена — заполнить</span></p><a class="btn" href="#contacts">Заказать</a></div>
+        <div class="body"><h3>Совместимость пары</h3><p>Разбор двух карт вместе: все связи между планетами с точным временем рождения обоих, а не на полдень.</p><p class="price"><span class="fill">цена — заполнить</span></p><button class="btn" type="button" data-order="1">Заказать</button></div>
         <span class="light" aria-hidden="true"></span>
       </article>
       <article class="offer" style="--i:2">
         <svg class="frame" aria-hidden="true"><rect x=".5" y=".5" rx="10" ry="10"/></svg>
         <div class="img"><img src="assets/card-year.webp" alt="" width="768" height="576" loading="lazy" decoding="async"></div>
-        <div class="body"><h3>Консультация астролога</h3><p>Живой разговор по видеосвязи, около часа. Карта строится заранее. <span class="fill">имя астролога — заполнить</span></p><p class="price"><span class="fill">цена и длительность — заполнить</span></p><a class="btn" href="#contacts">Записаться</a></div>
+        <div class="body"><h3>Консультация астролога</h3><p>Живой разговор по видеосвязи, около часа. Карта строится заранее. <span class="fill">имя астролога — заполнить</span></p><p class="price"><span class="fill">цена и длительность — заполнить</span></p><button class="btn" type="button" data-order="2">Записаться</button></div>
         <span class="light" aria-hidden="true"></span>
       </article>
     </div>
@@ -222,16 +242,35 @@
   </section>
 </main>
 
+<dialog class="order" id="orderDlg" aria-labelledby="orderH">
+  <form id="orderForm" method="dialog" novalidate>
+    <button class="order-x" type="button" id="orderClose" aria-label="Закрыть">×</button>
+    <h2 id="orderH">Заявка</h2>
+    <p class="order-lead" id="orderLead">Астролог ответит и договорится о времени и оплате. Сайт ничего не списывает.</p>
+    <div class="field wide"><label for="oService">Что нужно</label><select id="oService">
+      <option>Разбор натальной карты</option><option>Совместимость пары</option><option>Консультация астролога</option></select></div>
+    <div class="field"><label for="oName">Как к тебе обращаться</label><input id="oName" type="text" maxlength="80" autocomplete="name" required></div>
+    <div class="field"><label for="oContact">Как связаться</label><input id="oContact" type="text" maxlength="120" autocomplete="off" placeholder="@ник, телефон или почта" required></div>
+    <div class="field wide"><label for="oBirth">Дата, время и город рождения</label><input id="oBirth" type="text" maxlength="200" autocomplete="off" placeholder="14.06.1995, 08:30, Москва"></div>
+    <div class="field wide" id="oPartnerF" hidden><label for="oPartner">Дата, время и город рождения партнёра</label><input id="oPartner" type="text" maxlength="200" autocomplete="off"></div>
+    <div class="field wide"><label for="oComment">Что важно рассказать (необязательно)</label><textarea id="oComment" rows="3" maxlength="1500"></textarea></div>
+    <input class="trap" id="oWebsite" type="text" tabindex="-1" autocomplete="off" aria-hidden="true">
+    <label class="check wide"><input id="oAgree" type="checkbox" required> Согласен(на), чтобы эти данные передали астрологу для ответа на заявку</label>
+    <div class="order-act wide"><button class="btn solid" type="submit" id="orderSend">Отправить заявку</button><p class="order-msg" id="orderMsg" role="status"></p></div>
+  </form>
+</dialog>
+
 <footer id="contacts">
   <div>
     <p><span class="brand-f">Альмагест</span> — рабочее название.</p>
-    <p style="margin-top:10px"><span class="fill">контакты: телеграм, почта — заполнить</span></p>
+    <p class="contacts" id="footContacts"><span class="fill">контакты: телеграм, почта — заполнить в js/config.js</span></p>
   </div>
   <p>Астрологические толкования носят развлекательный характер. Положения светил рассчитаны астрономически, © 2026.<br>Карты Земли, планет и Млечного Пути — <a href="https://www.solarsystemscope.com/textures/" rel="noopener">Solar System Scope</a> (CC BY 4.0), на основе данных NASA.</p>
 </footer>
 
 <svg class="connector" id="connector" aria-hidden="true"><defs><linearGradient id="cg" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#e9eef4" stop-opacity=".9"/><stop offset="1" stop-color="#8fa9c4" stop-opacity=".15"/></linearGradient></defs><path id="connPath" d=""/><circle id="connDot" r="0"/></svg>
 
+<script src="js/config.js"></script>
 <script src="js/astro.js"></script>
 <script src="js/stars.js"></script>
 <script src="js/pair-points.js"></script>

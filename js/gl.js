@@ -235,8 +235,8 @@
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       if (q) { gl.endQuery(TQ.TIME_ELAPSED_EXT); tqPending.push([q, v.scene]); }
     }
-    // заранее подгрузить текстуры видов, к которым подъезжаем (полтора экрана вперёд)
-    for (const v of views) if (!v.visible && v.rect && v.rect.top < cssH * 2.5 && v.rect.bottom > -cssH) for (const slot of Object.values(v.tex)) if (!slot.t) slot.t = Stage.texture(slot.url);
+    // заранее подгрузить текстуры видов, к которым подъезжаем (на полтора экрана вперёд)
+    for (const v of views) if (!v.visible && v.rect && v.rect.top < cssH * 1.5 && v.rect.bottom > -cssH) for (const slot of Object.values(v.tex)) if (!slot.t) slot.t = Stage.texture(slot.url);
     queueCompile();
     if (TQ) tqPoll();
     let again = false;

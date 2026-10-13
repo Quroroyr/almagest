@@ -118,13 +118,14 @@
     }[key];
     return `<svg viewBox="0 0 32 24" width="32" height="24" aria-hidden="true">${body}</svg>`;
   }
+  // [название, широта, долгота, нынешний пояс в часах, пояс IANA — с историей перевода часов]
   const CITIES = [
-    ['Москва', 55.76, 37.62, 3], ['Санкт-Петербург', 59.94, 30.31, 3], ['Новосибирск', 55.03, 82.92, 7], ['Екатеринбург', 56.84, 60.61, 5], ['Казань', 55.79, 49.12, 3],
-    ['Нижний Новгород', 56.33, 44.0, 3], ['Челябинск', 55.16, 61.4, 5], ['Самара', 53.2, 50.15, 4], ['Омск', 54.99, 73.37, 6], ['Ростов-на-Дону', 47.24, 39.71, 3],
-    ['Уфа', 54.74, 55.97, 5], ['Красноярск', 56.01, 92.89, 7], ['Воронеж', 51.66, 39.2, 3], ['Пермь', 58.01, 56.25, 5], ['Волгоград', 48.71, 44.51, 3],
-    ['Краснодар', 45.04, 38.98, 3], ['Саратов', 51.53, 46.03, 4], ['Тюмень', 57.15, 65.53, 5], ['Иркутск', 52.29, 104.28, 8], ['Хабаровск', 48.48, 135.08, 10],
-    ['Владивосток', 43.12, 131.89, 10], ['Калининград', 54.71, 20.51, 2], ['Сочи', 43.6, 39.73, 3], ['Минск', 53.9, 27.56, 3], ['Алматы', 43.24, 76.89, 5],
-    ['Ташкент', 41.3, 69.24, 5], ['Ереван', 40.18, 44.51, 4], ['Тбилиси', 41.72, 44.79, 4],
+    ['Москва', 55.76, 37.62, 3, 'Europe/Moscow'], ['Санкт-Петербург', 59.94, 30.31, 3, 'Europe/Moscow'], ['Новосибирск', 55.03, 82.92, 7, 'Asia/Novosibirsk'], ['Екатеринбург', 56.84, 60.61, 5, 'Asia/Yekaterinburg'], ['Казань', 55.79, 49.12, 3, 'Europe/Moscow'],
+    ['Нижний Новгород', 56.33, 44.0, 3, 'Europe/Moscow'], ['Челябинск', 55.16, 61.4, 5, 'Asia/Yekaterinburg'], ['Самара', 53.2, 50.15, 4, 'Europe/Samara'], ['Омск', 54.99, 73.37, 6, 'Asia/Omsk'], ['Ростов-на-Дону', 47.24, 39.71, 3, 'Europe/Moscow'],
+    ['Уфа', 54.74, 55.97, 5, 'Asia/Yekaterinburg'], ['Красноярск', 56.01, 92.89, 7, 'Asia/Krasnoyarsk'], ['Воронеж', 51.66, 39.2, 3, 'Europe/Moscow'], ['Пермь', 58.01, 56.25, 5, 'Asia/Yekaterinburg'], ['Волгоград', 48.71, 44.51, 3, 'Europe/Volgograd'],
+    ['Краснодар', 45.04, 38.98, 3, 'Europe/Moscow'], ['Саратов', 51.53, 46.03, 4, 'Europe/Saratov'], ['Тюмень', 57.15, 65.53, 5, 'Asia/Yekaterinburg'], ['Иркутск', 52.29, 104.28, 8, 'Asia/Irkutsk'], ['Хабаровск', 48.48, 135.08, 10, 'Asia/Vladivostok'],
+    ['Владивосток', 43.12, 131.89, 10, 'Asia/Vladivostok'], ['Калининград', 54.71, 20.51, 2, 'Europe/Kaliningrad'], ['Сочи', 43.6, 39.73, 3, 'Europe/Moscow'], ['Минск', 53.9, 27.56, 3, 'Europe/Minsk'], ['Алматы', 43.24, 76.89, 5, 'Asia/Almaty'],
+    ['Ташкент', 41.3, 69.24, 5, 'Asia/Tashkent'], ['Ереван', 40.18, 44.51, 4, 'Asia/Yerevan'], ['Тбилиси', 41.72, 44.79, 4, 'Asia/Tbilisi'],
   ];
 
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -259,11 +260,13 @@
   });
   // тексты первого экрана появляются, когда небо уже проявилось
   const heroIn = [...hero.querySelectorAll('[data-in]')];
-  const HERO_AT = [1.7, 2.2, 2.7, 3.2, 3.8];
+  // (заголовок — через полсекунды: человек не должен смотреть в пустую тьму, пока собирается сцена)
+  const HERO_AT = [.5, .9, 1.3, 1.7, 2.1], HERO_T0 = performance.now();
   function heroTexts(now) {
     if (REDUCED || !Stage.ok) { heroIn.forEach(el => el.classList.add('on')); return false; }
-    if (!heroView.seen) return true;
-    const t = (now - heroView.enterAt) / 1000;
+    const start = heroView.seen ? Math.min(heroView.enterAt, HERO_T0 + 900) : HERO_T0 + 900;
+    if (now < start) return true;
+    const t = (now - start) / 1000;
     let pending = false;
     heroIn.forEach((el, i) => { if (t >= HERO_AT[Math.min(i, HERO_AT.length - 1)]) el.classList.add('on'); else pending = true; });
     return pending;
@@ -1282,7 +1285,7 @@
     if (isSample) meta.push('<span class="sample">Пример</span>');
     meta.push(fmtDate(local, { timeZone: 'UTC', day: 'numeric', month: 'long', year: 'numeric' }));
     meta.push(ch.timeKnown ? `${String(local.getUTCHours()).padStart(2, '0')}:${String(local.getUTCMinutes()).padStart(2, '0')}` : 'время неизвестно — дома не строятся');
-    meta.push(escapeHtml(ch.place.name));
+    meta.push(escapeHtml(ch.place.full || ch.place.name));
     $('chartMeta').innerHTML = meta.join('<span aria-hidden="true">·</span>');
     skySetCityFromChart(ch.place);
     renderReading(ch);
@@ -1290,17 +1293,91 @@
   }
 
   // форма рождения
-  const citySel = $('bCity');
-  CITIES.forEach(([n], i) => { const o = document.createElement('option'); o.value = String(i); o.textContent = n; citySel.appendChild(o); });
-  const other = document.createElement('option'); other.value = 'other'; other.textContent = 'Другой город — по координатам'; citySel.appendChild(other);
-  citySel.addEventListener('change', () => $('bCoords').classList.toggle('on', citySel.value === 'other'));
+  // Город ищется по встроенному списку, а если его там нет — по открытому геокодеру Open-Meteo
+  // (уходит только набранное название, без даты и времени). У найденного города есть пояс IANA:
+  // местное время переводится во всемирное с историей перевода часов, включая летнее время прошлых лет.
+  const cityIn = $('bCity'), cityList = $('bCityList'), cityNote = $('bCityNote');
+  const normName = t => t.toLowerCase().replace(/ё/g, 'е').trim();
+  const cityPlace = c => ({ name: c[0], full: CITY_FULL[c[0]] || c[0], lat: c[1], lon: c[2], zone: c[4] });
+  let place = cityPlace(CITIES[0]), cityOpts = [], cityAct = -1, cityReq = null, cityTimer = 0;
+  function cityRender(opts, note) {
+    cityOpts = opts; cityAct = opts.length ? 0 : -1;
+    cityList.innerHTML = opts.map((o, i) => `<li role="option" id="bCityOpt${i}" data-i="${i}"${i === 0 ? ' aria-selected="true"' : ''}><b>${escapeHtml(o.name)}</b><span>${escapeHtml(o.region || '')}</span></li>`).join('')
+      + (note ? `<li class="note" role="presentation">${note}</li>` : '');
+    const open = opts.length > 0 || !!note;
+    cityList.hidden = !open; cityIn.setAttribute('aria-expanded', String(open));
+    cityIn.setAttribute('aria-activedescendant', cityAct >= 0 ? 'bCityOpt0' : '');
+  }
+  function cityMark(i) {
+    cityAct = i;
+    cityList.querySelectorAll('[role=option]').forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
+    cityIn.setAttribute('aria-activedescendant', i >= 0 ? 'bCityOpt' + i : '');
+    const li = cityList.querySelector(`[data-i="${i}"]`); if (li) li.scrollIntoView({ block: 'nearest' });
+  }
+  function cityPick(o) {
+    place = { name: o.name, full: o.full || o.name, lat: o.lat, lon: o.lon, zone: o.zone };
+    cityIn.value = place.full; cityRender([]); cityNote.textContent = '';
+    cityIn.setCustomValidity('');
+  }
+  function citySearch() {
+    const q = normName(cityIn.value);
+    const local = CITIES.filter(c => normName(c[0]).startsWith(q) || normName(CITY_FULL[c[0]] || '').startsWith(q)).slice(0, 6)
+      .map(c => ({ ...cityPlace(c), region: (CITY_FULL[c[0]] || 'Россия').split(', ')[1] || 'Россия' }));
+    cityRender(local, q.length >= 2 ? 'ищу…' : '');
+    if (cityReq) cityReq.abort();
+    clearTimeout(cityTimer);
+    if (q.length < 2) { cityRender(local); return; }
+    cityTimer = setTimeout(() => {
+      cityReq = new AbortController();
+      fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(cityIn.value.trim())}&count=8&language=ru&format=json`, { signal: cityReq.signal })
+        .then(r => r.json()).then(j => {
+          const seen = new Set(local.map(o => o.name + o.region));
+          const far = (j.results || []).filter(r => r.timezone).map(r => {
+            const region = [r.admin1, r.country].filter(Boolean).filter((v, i, a) => a.indexOf(v) === i).join(', ');
+            return { name: r.name, region, full: r.country ? `${r.name}, ${r.country}` : r.name, lat: +r.latitude.toFixed(4), lon: +r.longitude.toFixed(4), zone: r.timezone };
+          }).filter(o => !seen.has(o.name + o.region));
+          const all = local.concat(far).slice(0, 8);
+          cityRender(all, all.length ? '' : 'Не нашли такой город. Проверь написание или укажи координаты.');
+        })
+        .catch(e => { if (e.name !== 'AbortError') cityRender(local, local.length ? '' : 'Поиск недоступен — выбери город из списка или укажи координаты.'); });
+    }, 250);
+  }
+  cityIn.addEventListener('input', () => { cityIn.setCustomValidity(''); citySearch(); });
+  cityIn.addEventListener('focus', () => cityIn.select());
+  cityIn.addEventListener('keydown', e => {
+    if (cityList.hidden) { if (e.key === 'ArrowDown') { citySearch(); e.preventDefault(); } return; }
+    if (e.key === 'ArrowDown') { cityMark(Math.min(cityOpts.length - 1, cityAct + 1)); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { cityMark(Math.max(0, cityAct - 1)); e.preventDefault(); }
+    else if (e.key === 'Enter' && cityAct >= 0) { cityPick(cityOpts[cityAct]); e.preventDefault(); }
+    else if (e.key === 'Escape') { cityRender([]); }
+  });
+  cityList.addEventListener('pointerdown', e => { const li = e.target.closest('[data-i]'); if (li) { e.preventDefault(); cityPick(cityOpts[+li.dataset.i]); } });
+  cityIn.addEventListener('blur', () => setTimeout(() => {
+    if (!cityList.hidden && cityOpts.length && normName(cityIn.value) && normName(cityOpts[0].name) === normName(cityIn.value)) cityPick(cityOpts[0]);
+    cityRender([]);
+    if (normName(cityIn.value) !== normName(place.full) && normName(cityIn.value) !== normName(place.name)) cityNote.textContent = `Город не выбран из списка — карта построится для «${place.full}».`;
+  }, 120));
+  cityIn.value = place.full;
+  $('bCoordsBtn').addEventListener('click', () => {
+    const on = !$('bCoords').classList.contains('on');
+    $('bCoords').classList.toggle('on', on);
+    $('bCoordsBtn').setAttribute('aria-expanded', String(on));
+    $('bCoordsBtn').textContent = on ? 'искать город по названию' : 'указать координаты вручную';
+    cityIn.disabled = on;
+  });
   $('bNoTime').addEventListener('change', e => { $('bTime').disabled = e.target.checked; });
   function readPlace() {
-    if (citySel.value === 'other') {
+    if ($('bCoords').classList.contains('on')) {
       const lat = +$('bLat').value || 0, lon = +$('bLon').value || 0, tz = +$('bTz').value || 0;
-      return { name: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, lat, lon, tz };
+      return { name: `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, lat, lon, tzFixed: tz };
     }
-    const [name, lat, lon, tz] = CITIES[+citySel.value]; return { name, lat, lon, tz };
+    return { ...place };
+  }
+  // смещение пояса (минуты) в данный момент — по базе часовых поясов браузера, с историей
+  function zoneOffset(zone, utcMs) {
+    const f = new Intl.DateTimeFormat('en-US', { timeZone: zone, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' });
+    const v = {}; for (const x of f.formatToParts(new Date(utcMs))) v[x.type] = +x.value;
+    return Math.round((Date.UTC(v.year, v.month - 1, v.day, v.hour, v.minute, v.second) - utcMs) / 60000);
   }
   // дата рождения вводится руками в виде ДД.ММ.ГГГГ (точки ставятся сами) или выбирается в календаре.
   // Стандартное поле даты при наборе с клавиатуры путает сегменты, поэтому оно спрятано и хранит только
@@ -1357,17 +1434,92 @@
     const [y, m, d] = dateStr.split('-').map(Number), [hh, mm] = (timeStr || '12:00').split(':').map(Number);
     return new Date(Date.UTC(y, m - 1, d, hh, mm) - tz * 3600e3);
   }
+  // местное время места рождения → всемирное; place.tz получает смещение, действовавшее в тот момент
+  function placeToUTC(dateStr, timeStr, pl) {
+    if (pl.tzFixed !== undefined) { pl.tz = pl.tzFixed; return localToUTC(dateStr, timeStr, pl.tz); }
+    const [y, m, d] = dateStr.split('-').map(Number), [hh, mm] = (timeStr || '12:00').split(':').map(Number);
+    const wall = Date.UTC(y, m - 1, d, hh, mm);
+    let off = zoneOffset(pl.zone, wall), utc = wall - off * 60000;
+    const off2 = zoneOffset(pl.zone, utc); if (off2 !== off) { off = off2; utc = wall - off * 60000; }
+    pl.tz = off / 60;
+    return new Date(utc);
+  }
   $('birthForm').addEventListener('submit', e => {
     e.preventDefault();
     if (!validDate($('bDate'))) return;
     const ds = $('bDate').value;
     const noTime = $('bNoTime').checked;
-    const place = readPlace();
-    const ch = buildChart(localToUTC(ds, noTime ? '12:00' : $('bTime').value, place.tz), place, !noTime);
+    const pl = readPlace();
+    const ch = buildChart(placeToUTC(ds, noTime ? '12:00' : $('bTime').value, pl), pl, !noTime);
     setChart(ch, false, false);
+    myChart = { d: ds, t: noTime ? '' : $('bTime').value, pl };
+    shareBar.hidden = false;
     // на телефоне круг выше формы — показать его
     if (window.innerWidth <= 960) wheel.scrollIntoView({ behavior: REDUCED ? 'auto' : 'smooth', block: 'center' });
   });
+  // поделиться картой: ссылка открывает ту же карту; картинка — для сторис и переписки
+  let myChart = null;
+  const shareBar = $('shareBar'), shareMsg = $('shareMsg');
+  function chartUrl() {
+    const c = myChart, q = new URLSearchParams({ d: c.d });
+    if (c.t) q.set('t', c.t);
+    q.set('n', c.pl.full || c.pl.name); q.set('lat', c.pl.lat); q.set('lon', c.pl.lon);
+    if (c.pl.tzFixed !== undefined) q.set('tz', c.pl.tzFixed); else q.set('z', c.pl.zone);
+    return `${location.origin}${location.pathname}?${q}#chart`;
+  }
+  function flash(t) { shareMsg.textContent = t; shareMsg.classList.add('on'); clearTimeout(flash.t); flash.t = setTimeout(() => shareMsg.classList.remove('on'), 2600); }
+  $('shareLink').addEventListener('click', async () => {
+    if (!myChart) return;
+    const url = chartUrl();
+    if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: 'Моя натальная карта — Альмагест', url }); return; } catch (e) { if (e.name === 'AbortError') return; } }
+    try { await navigator.clipboard.writeText(url); flash('Ссылка скопирована — по ней откроется эта карта'); }
+    catch (e) { prompt('Скопируй ссылку на карту:', url); }
+  });
+  $('shareImg').addEventListener('click', async () => {
+    if (!W.chart) return;
+    await document.fonts.ready;
+    const S = 1080, H = 1350, cv = document.createElement('canvas'); cv.width = S; cv.height = H;
+    const g = cv.getContext('2d');
+    const bg = g.createLinearGradient(0, 0, 0, H); bg.addColorStop(0, '#0c1726'); bg.addColorStop(1, '#04070d');
+    g.fillStyle = bg; g.fillRect(0, 0, S, H);
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 420; i++) { const r = rnd() * 1.3 + .2; g.globalAlpha = .25 + rnd() * .6; g.fillStyle = '#e9eef4'; g.beginPath(); g.arc(rnd() * S, rnd() * H, r, 0, 7); g.fill(); }
+    g.globalAlpha = 1;
+    const wcv = $('wheel'), side = 900;
+    g.drawImage(wcv, (S - side) / 2, 200, side, side * wcv.height / wcv.width);
+    g.textAlign = 'center'; g.fillStyle = '#e9eef4';
+    g.font = '300 64px "Cormorant Garamond", serif'; g.fillText('НАТАЛЬНАЯ КАРТА', S / 2, 110);
+    g.fillStyle = '#b2bfce'; g.font = 'italic 30px "Cormorant Garamond", serif';
+    g.fillText($('chartMeta').textContent.replace(/\s*·\s*/g, ' · ').replace(/^Пример · /, ''), S / 2, 160);
+    const ch = W.chart, line = ['sun', 'moon'].map(k => `${PL[k].name} — ${signOf(ch.pos[k].lon).name}`);
+    if (ch.ang) line.push(`Асцендент — ${signOf(ch.ang.asc).name}`);
+    g.fillStyle = '#e9eef4'; g.font = '34px "PT Serif", serif'; g.fillText(line.join('   ·   '), S / 2, 1180);
+    g.fillStyle = '#8fa9c4'; g.font = '500 24px "Cormorant Garamond", serif';
+    g.fillText('АЛЬМАГЕСТ  ·  ' + (location.host + location.pathname).replace(/\/$/, ''), S / 2, 1290);
+    const a = document.createElement('a');
+    a.download = 'natalnaya-karta.png'; a.href = cv.toDataURL('image/png'); a.click();
+    flash('Картинка сохранена');
+  });
+  // ссылка на карту: ?d=1995-06-14&t=08:30&n=…&lat=…&lon=…&z=Europe/Moscow — сразу строит эту карту
+  const QS = new URLSearchParams(location.search);
+  function chartFromUrl() {
+    const d = QS.get('d'); if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    const lat = +QS.get('lat'), lon = +QS.get('lon'); if (!isFinite(lat) || !isFinite(lon) || Math.abs(lat) > 90) return null;
+    const t = /^\d{2}:\d{2}$/.test(QS.get('t') || '') ? QS.get('t') : '';
+    let zone = QS.get('z'); try { if (zone) new Intl.DateTimeFormat('en', { timeZone: zone }); } catch (e) { zone = null; }
+    const n = (QS.get('n') || '').slice(0, 80);
+    const pl = zone ? { name: n.split(', ')[0] || 'место рождения', full: n || 'место рождения', lat, lon, zone } : { name: n || `${lat}°, ${lon}°`, full: n, lat, lon, tzFixed: +QS.get('tz') || 0 };
+    return { d, t, pl };
+  }
+  const fromUrl = chartFromUrl();
+  if (fromUrl) {
+    $('bDate').value = fromUrl.d; $('bDate').dispatchEvent(new Event('change'));
+    if (fromUrl.t) $('bTime').value = fromUrl.t; else { $('bNoTime').checked = true; $('bTime').disabled = true; }
+    if (fromUrl.pl.zone) { place = fromUrl.pl; cityIn.value = place.full; }
+    else { $('bCoordsBtn').click(); $('bLat').value = fromUrl.pl.lat; $('bLon').value = fromUrl.pl.lon; $('bTz').value = fromUrl.pl.tzFixed; }
+    myChart = fromUrl; shareBar.hidden = false; // сама карта строится при запуске, вместо примера
+    addEventListener('load', () => setTimeout(() => $('chart').scrollIntoView({ block: 'start' }), 60));
+  }
   // первый показ секции с картой — церемония для примера
   let chartSeen = false;
   new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting && !chartSeen) { chartSeen = true; if (W.chart && !W.morph) ceremony(W.chart, true); } }, { threshold: 0.35 }).observe(wheel);
@@ -1603,13 +1755,73 @@
     }
   }, { threshold: 0.55 }).observe(endSec);
 
+  // ——— заявки на консультации ———
+  // Куда уходят — в js/config.js: обработчик (server/telegram-worker.js) или, пока его нет, чат в Telegram / почта.
+  const CFG = window.ALMAGEST || {};
+  const orderDlg = $('orderDlg'), orderMsg = $('orderMsg'), orderSend = $('orderSend');
+  const tgUrl = CFG.telegram ? `https://t.me/${CFG.telegram.replace(/^@/, '')}` : '';
+  {
+    const parts = [];
+    if (tgUrl) parts.push(`<a href="${tgUrl}" rel="noopener">Telegram: @${escapeHtml(CFG.telegram.replace(/^@/, ''))}</a>`);
+    if (CFG.email) parts.push(`<a href="mailto:${escapeHtml(CFG.email)}">${escapeHtml(CFG.email)}</a>`);
+    if (parts.length) $('footContacts').innerHTML = parts.join('<span aria-hidden="true"> · </span>');
+  }
+  function birthLine() {
+    const c = myChart; if (!c) return '';
+    return [isoToText(c.d), c.t || 'время неизвестно', c.pl.full || c.pl.name].join(', ');
+  }
+  function openOrder(i) {
+    $('oService').selectedIndex = i;
+    $('oPartnerF').hidden = i !== 1;
+    if (!$('oBirth').value) $('oBirth').value = birthLine();
+    orderMsg.textContent = ''; orderMsg.className = 'order-msg';
+    orderSend.disabled = false;
+    if (typeof orderDlg.showModal === 'function') orderDlg.showModal(); else orderDlg.setAttribute('open', '');
+    setTimeout(() => $('oName').focus(), 30);
+  }
+  document.querySelectorAll('[data-order]').forEach(b => b.addEventListener('click', () => openOrder(+b.dataset.order)));
+  $('oService').addEventListener('change', e => { $('oPartnerF').hidden = e.target.selectedIndex !== 1; });
+  $('orderClose').addEventListener('click', () => orderDlg.close());
+  orderDlg.addEventListener('click', e => { if (e.target === orderDlg) orderDlg.close(); }); // щелчок мимо окна
+  function orderText(d) {
+    return [`Заявка с сайта «Альмагест»: ${d.service}`, `Имя: ${d.name}`, `Связь: ${d.contact}`, d.birth && `Рождение: ${d.birth}`, d.partner && `Партнёр: ${d.partner}`, d.comment].filter(Boolean).join('\n');
+  }
+  $('orderForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    for (const id of ['oName', 'oContact']) { const f = $(id); f.setCustomValidity(f.value.trim() ? '' : 'Заполни, пожалуйста'); }
+    $('oAgree').setCustomValidity($('oAgree').checked ? '' : 'Без согласия заявку не передать');
+    if (!$('orderForm').reportValidity()) return;
+    const d = { service: $('oService').value, name: $('oName').value.trim(), contact: $('oContact').value.trim(), birth: $('oBirth').value.trim(),
+      partner: $('oPartnerF').hidden ? '' : $('oPartner').value.trim(), comment: $('oComment').value.trim(), website: $('oWebsite').value, page: location.href };
+    const say = (t, cls) => { orderMsg.textContent = t; orderMsg.className = 'order-msg ' + (cls || ''); };
+    if (CFG.orderEndpoint) {
+      orderSend.disabled = true; say('Отправляю…');
+      try {
+        const r = await fetch(CFG.orderEndpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(d) });
+        if (!r.ok) throw new Error(r.status);
+        say('Заявка отправлена. Астролог напишет тебе в ближайшее время.', 'ok');
+        $('orderForm').reset(); $('oPartnerF').hidden = true;
+        return;
+      } catch (err) { orderSend.disabled = false; say(tgUrl || CFG.email ? 'Не получилось отправить. Попробуй ещё раз или напиши напрямую — контакты внизу страницы.' : 'Не получилось отправить. Попробуй ещё раз чуть позже.', 'err'); return; }
+    }
+    const text = orderText(d);
+    if (tgUrl || CFG.email) {
+      try { await navigator.clipboard.writeText(text); } catch (err) { /* без буфера — текст ниже */ }
+      if (tgUrl) { window.open(tgUrl, '_blank', 'noopener'); say('Текст заявки скопирован — вставь его в открывшийся чат и отправь.', 'ok'); }
+      else { location.href = `mailto:${CFG.email}?subject=${encodeURIComponent('Заявка: ' + d.service)}&body=${encodeURIComponent(text)}`; say('Открываю письмо с готовым текстом заявки.', 'ok'); }
+      return;
+    }
+    say('Приём заявок ещё не подключён: владелец сайта пока не указал, куда их отправлять.', 'err');
+  });
+
   // ——— запуск ———
   function boot() {
     sizeWheel(); sizePair(); sizeFrames();
     skyInit();
-    const sample = { name: 'Москва', lat: 55.76, lon: 37.62, tz: 3 };
-    const ch = buildChart(localToUTC('1995-06-14', '08:30', 3), sample, true);
-    setChart(ch, true, true);
+    const sample = { name: 'Москва', full: 'Москва', lat: 55.76, lon: 37.62, zone: 'Europe/Moscow' };
+    const ch = fromUrl ? buildChart(placeToUTC(fromUrl.d, fromUrl.t || '12:00', fromUrl.pl), fromUrl.pl, !!fromUrl.t)
+      : buildChart(placeToUTC('1995-06-14', '08:30', sample), sample, true);
+    setChart(ch, !fromUrl, !fromUrl);
     if (!chartSeen) { W.playing = false; W.start = -1e9; }
     redrawWheel();
     computePair(false);
