@@ -8,3 +8,4 @@ refs/
 concept/
 tools/
 .playwright-mcp/
+.claude/
