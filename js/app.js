@@ -1837,4 +1837,8 @@
     Promise.all([document.fonts.load(`16px ${F.sym}`, '☉♈'), document.fonts.load(`500 14px ${F.display}`, 'ASC Овен')]),
     new Promise(r => setTimeout(r, 2500)),
   ]).then(boot, boot);
+  // пасхалка для тех, кто открыл консоль
+  const sun = positions(new Date()).sun;
+  console.log(`%c✦ Альмагест %c\nСолнце сейчас ${sun ? signOf(sun.lon).loc : 'в отпуске'}. Звёзды говорят, что ты читаешь консоль — значит, сегодня удачный день для дебага.`,
+    'font: 600 18px Georgia, serif; color: #d8bd92', 'font: 13px Georgia, serif; color: #8fa9c4');
 })();
